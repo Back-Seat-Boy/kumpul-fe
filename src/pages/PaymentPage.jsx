@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, CheckCircle, Clock, AlertCircle, Copy } from "lucide-react";
 import { usePayment, useCreatePayment, useClaimPayment, useConfirmPayment } from "../hooks/usePayments";
-import { useEvent } from "../hooks/useEvents";
+import { useEvent, useUpdateEventStatus } from "../hooks/useEvents";
 import { useParticipants } from "../hooks/useParticipants";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "../components/ui/Button";
@@ -31,6 +31,7 @@ export const PaymentPage = () => {
   const { data: paymentData, isLoading } = usePayment(event?.id);
 
   const createPayment = useCreatePayment();
+  const updateEventStatus = useUpdateEventStatus();
   const claimPayment = useClaimPayment();
   const confirmPayment = useConfirmPayment();
 
@@ -48,6 +49,7 @@ export const PaymentPage = () => {
 
   const handleCreatePayment = async () => {
     try {
+      // First create the payment
       await createPayment.mutateAsync({
         eventId: event.id,
         data: {
@@ -55,6 +57,14 @@ export const PaymentPage = () => {
           payment_info: paymentInfo,
         },
       });
+      
+      // Then update event status to payment_open
+      await updateEventStatus.mutateAsync({
+        eventId: event.id,
+        status: "payment_open",
+        shareToken,
+      });
+      
       setIsCreateModalOpen(false);
     } catch (error) {
       showError(getErrorMessage(error));
@@ -297,7 +307,7 @@ export const PaymentPage = () => {
             </Button>
             <Button
               onClick={handleCreatePayment}
-              loading={createPayment.isPending}
+              loading={createPayment.isPending || updateEventStatus.isPending}
               disabled={!totalCost || !paymentInfo}
               className="flex-1"
             >

@@ -41,7 +41,7 @@ export const LoginPage = () => {
             <CalendarDays className="w-8 h-8 text-green-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Kumpul</h1>
-          <p className="text-gray-500">Badminton sama temen, gampang.</p>
+          <p className="text-gray-500">kumpul sama temen jadi gampang.</p>
         </div>
 
         {error && (
@@ -50,10 +50,10 @@ export const LoginPage = () => {
           </div>
         )}
 
-        <Button 
-          onClick={handleGoogleLogin} 
+        <Button
+          onClick={handleGoogleLogin}
           loading={isLoading}
-          className="w-full" 
+          className="w-full"
           size="lg"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">

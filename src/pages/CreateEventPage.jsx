@@ -3,14 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Plus, X } from "lucide-react";
 import { useCreateEvent } from "../hooks/useEvents";
-import { useCreateOption } from "../hooks/useOptions";
-import { useVenues } from "../hooks/useVenues";
+import { useVenues, useCreateVenue } from "../hooks/useVenues";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Textarea } from "../components/ui/Textarea";
 import { Select } from "../components/ui/Select";
 import { Modal } from "../components/ui/Modal";
-import { useCreateVenue } from "../hooks/useVenues";
 import { toRFC3339 } from "../utils/format";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 
@@ -23,7 +21,6 @@ export const CreateEventPage = () => {
 
   const { data: venues } = useVenues();
   const createEvent = useCreateEvent();
-  const createOption = useCreateOption();
   const createVenue = useCreateVenue();
 
   const venueOptions = venues?.map((v) => ({ value: v.id, label: v.name })) || [];
@@ -49,32 +46,29 @@ export const CreateEventPage = () => {
       // Format voting_deadline to RFC3339
       const votingDeadline = data.voting_deadline ? toRFC3339(data.voting_deadline) : null;
 
-      // Create event
+      // Build options array for the API
+      const formattedOptions = options
+        .filter((opt) => opt.venueId && opt.date) // Only include complete options
+        .map((opt) => ({
+          venue_id: opt.venueId,
+          date: toRFC3339(`${opt.date}T00:00`),
+          start_time: opt.startTime || "18:00",
+          end_time: opt.endTime || "20:00",
+        }));
+
+      if (formattedOptions.length === 0) {
+        showError("Please add at least one venue option");
+        return;
+      }
+
+      // Create event with options in single request
       const event = await createEvent.mutateAsync({
         title: data.title,
         description: data.description,
         player_cap: data.player_cap ? parseInt(data.player_cap) : null,
         voting_deadline: votingDeadline,
+        options: formattedOptions,
       });
-
-      // Create options
-      for (const option of options) {
-        if (option.venueId && option.date) {
-          // Format date to include time and timezone for backend
-          const dateWithTime = toRFC3339(`${option.date}T00:00`);
-
-          await createOption.mutateAsync({
-            eventId: event.id,
-            shareToken: event.share_token,
-            data: {
-              venue_id: option.venueId,
-              date: dateWithTime,
-              start_time: option.startTime || "18:00",
-              end_time: option.endTime || "20:00",
-            },
-          });
-        }
-      }
 
       navigate(`/events/${event.share_token}`);
     } catch (error) {

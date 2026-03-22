@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { MapPin, Calendar, Clock, Users } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Avatar } from "../ui/Avatar";
@@ -15,7 +14,6 @@ export const OptionCard = ({
   showVotes = true,
 }) => {
   const user = useAuthStore((state) => state.user);
-  const [imageError, setImageError] = useState(false);
 
   const handleVoteClick = () => {
     if (hasVoted) {
@@ -65,7 +63,33 @@ export const OptionCard = ({
         </span>
       </div>
 
-      {showVotes && option.votes && option.votes.length > 0 && (
+      {/* Show voters with names and avatars */}
+      {option.voters && option.voters.length > 0 && (
+        <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-500">Voted by:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {option.voters.map((voter) => (
+              <div
+                key={voter.user_id}
+                className="flex items-center gap-1.5 px-2 py-1 bg-white rounded-full border border-gray-200"
+              >
+                <Avatar
+                  src={voter.avatar_url}
+                  name={voter.user_name}
+                  size="sm"
+                />
+                <span className="text-xs text-gray-700">{voter.user_name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Legacy: Show votes array if available */}
+      {!option.voters && option.votes && option.votes.length > 0 && (
         <div className="flex items-center gap-1 mt-3">
           <div className="flex -space-x-2">
             {option.votes.slice(0, 5).map((vote, idx) => (

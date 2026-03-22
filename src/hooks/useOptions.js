@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
-import { listOptions, createOption, deleteOption } from "../api/options";
+import { listOptions, listOptionsWithVoters, createOption, deleteOption } from "../api/options";
 
+// Hook for fetching basic options - includes has_voted field for authenticated users
 export const useOptions = (shareToken) => {
   const showError = useToastStore((state) => state.showError);
   
@@ -15,6 +16,30 @@ export const useOptions = (shareToken) => {
       },
     },
   });
+};
+
+// NEW: Hook for fetching options with voter details
+export const useOptionsWithVoters = (eventId, shareToken) => {
+  const showError = useToastStore((state) => state.showError);
+  
+  return useQuery({
+    queryKey: ["event", shareToken, "options", "with-voters"],
+    queryFn: () => listOptionsWithVoters(eventId),
+    enabled: !!eventId,
+    meta: {
+      onError: (error) => {
+        showError(getErrorMessage(error));
+      },
+    },
+  });
+};
+
+// Hook to get user's voted option IDs from the has_voted field
+export const useVotedOptionIds = (options) => {
+  if (!options) return [];
+  return options
+    .filter((opt) => opt.has_voted)
+    .map((opt) => opt.id);
 };
 
 export const useCreateOption = () => {

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink, Crown } from "lucide-react";
 import { useEvent, useUpdateEventStatus, useSetChosenOption } from "../hooks/useEvents";
-import { useOptions } from "../hooks/useOptions";
+import { useOptionsWithVoters, useVotedOptionIds } from "../hooks/useOptions";
 import { useParticipants, useJoinEvent, useLeaveEvent } from "../hooks/useParticipants";
 import { useCastVote, useRemoveVote } from "../hooks/useVotes";
 import { useAuthStore } from "../store/authStore";
@@ -11,6 +11,7 @@ import { ShareButton } from "../components/event/ShareButton";
 import { OptionCard } from "../components/voting/OptionCard";
 import { VoteTally } from "../components/voting/VoteTally";
 import { ParticipantList } from "../components/participant/ParticipantList";
+import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { Spinner } from "../components/ui/Spinner";
@@ -28,10 +29,15 @@ export const EventDetailPage = () => {
   const [isCloseVotingOpen, setIsCloseVotingOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [isContactingVenue, setIsContactingVenue] = useState(false);
+  const [showAllParticipants, setShowAllParticipants] = useState(false);
 
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
-  const { data: options } = useOptions(shareToken);
+  // Use with-voters endpoint to show who voted for each option
+  const { data: options } = useOptionsWithVoters(event?.id, shareToken);
   const { data: participants } = useParticipants(shareToken);
+
+  // Use has_voted field from API
+  const votedOptionIds = useVotedOptionIds(options);
 
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
@@ -42,11 +48,6 @@ export const EventDetailPage = () => {
 
   const isCreator = event && user && event.created_by === user.id;
   const hasJoined = participants?.some((p) => p.user_id === user?.id);
-
-  // Get user's voted option IDs
-  const votedOptionIds = options
-    ?.filter((opt) => opt.votes?.some((v) => v.user_id === user?.id))
-    .map((opt) => opt.id) || [];
 
   if (isLoadingEvent) {
     return (
@@ -131,6 +132,9 @@ export const EventDetailPage = () => {
   };
 
   const chosenOption = options?.find((o) => o.id === event.chosen_option_id);
+
+  // Find creator participant
+  const creatorParticipant = participants?.find((p) => p.user_id === event.created_by);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -280,7 +284,40 @@ export const EventDetailPage = () => {
                 {event.player_cap ? ` / ${event.player_cap}` : ""}
               </span>
             </div>
-            <ParticipantList participants={participants} />
+            
+            {/* Creator badge */}
+            {creatorParticipant && (
+              <div className="flex items-center gap-2 mb-3 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                <Avatar
+                  src={creatorParticipant.user?.avatar_url}
+                  name={creatorParticipant.user?.name}
+                  size="sm"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    {creatorParticipant.user?.name}
+                  </p>
+                  <p className="text-xs text-amber-600">Organizer</p>
+                </div>
+                <Crown className="w-4 h-4 text-amber-500" />
+              </div>
+            )}
+            
+            {/* Participants list with names */}
+            <ParticipantList 
+              participants={participants?.filter((p) => p.user_id !== event.created_by)} 
+              isCreatorId={event.created_by}
+              maxDisplay={showAllParticipants ? 100 : 5}
+            />
+            
+            {participants && participants.length > 6 && (
+              <button
+                onClick={() => setShowAllParticipants(!showAllParticipants)}
+                className="text-sm text-green-600 hover:text-green-700 mt-3"
+              >
+                {showAllParticipants ? "Show less" : `Show all ${participants.length} participants`}
+              </button>
+            )}
           </div>
         )}
 

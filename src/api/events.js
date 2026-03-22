@@ -10,6 +10,7 @@ export const getEvent = async (shareToken) => {
   return res.data.data;
 };
 
+// Updated: Now creates event with options in single request
 export const createEvent = async (data) => {
   const res = await api.post("/api/events/", data);
   return res.data.data;
