@@ -2,12 +2,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 import { listEvents, getEvent, createEvent, updateEventStatus, setChosenOption } from "../api/events";
 
-export const useEvents = () => {
+const DEFAULT_LIMIT = 10;
+
+// Hook for paginated events list with filters
+export const useEvents = (params = {}) => {
   const showError = useToastStore((state) => state.showError);
   
   return useQuery({
-    queryKey: ["events"],
-    queryFn: listEvents,
+    queryKey: ["events", params],
+    queryFn: () => listEvents(params),
     meta: {
       onError: (error) => {
         showError(getErrorMessage(error));
@@ -57,6 +60,7 @@ export const useUpdateEventStatus = () => {
     mutationFn: ({ eventId, status }) => updateEventStatus(eventId, status),
     onSuccess: (_, { shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
       showSuccess("Event status updated");
     },
     onError: (error) => {
@@ -75,6 +79,7 @@ export const useSetChosenOption = () => {
     onSuccess: (_, { shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken] });
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "options"] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
       showSuccess("Option selected and voting closed");
     },
     onError: (error) => {

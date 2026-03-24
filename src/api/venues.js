@@ -1,7 +1,17 @@
 import api from "./axios";
 
-export const listVenues = async () => {
-  const res = await api.get("/api/venues/");
+// List venues with pagination and search (global - all users can see all venues)
+export const listVenues = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.set("page", params.page);
+  if (params.limit) queryParams.set("limit", params.limit);
+  if (params.search) queryParams.set("search", params.search);
+  
+  const query = queryParams.toString();
+  const url = query ? `/api/venues/?${query}` : "/api/venues/";
+  
+  const res = await api.get(url);
   return res.data.data;
 };
 

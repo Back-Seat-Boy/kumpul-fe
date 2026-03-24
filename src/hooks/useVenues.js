@@ -2,12 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 import { listVenues, createVenue, updateVenue, deleteVenue } from "../api/venues";
 
-export const useVenues = () => {
+const DEFAULT_LIMIT = 10;
+
+export const useVenues = (params = {}) => {
   const showError = useToastStore((state) => state.showError);
   
   return useQuery({
-    queryKey: ["venues"],
-    queryFn: listVenues,
+    queryKey: ["venues", params],
+    queryFn: () => listVenues(params),
     meta: {
       onError: (error) => {
         showError(getErrorMessage(error));

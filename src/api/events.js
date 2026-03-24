@@ -1,7 +1,19 @@
 import api from "./axios";
 
-export const listEvents = async () => {
-  const res = await api.get("/api/events/");
+// List events with pagination and filters
+// params: { page, limit, status, search }
+export const listEvents = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.set("page", params.page);
+  if (params.limit) queryParams.set("limit", params.limit);
+  if (params.status) queryParams.set("status", params.status);
+  if (params.search) queryParams.set("search", params.search);
+  
+  const query = queryParams.toString();
+  const url = query ? `/api/events/?${query}` : "/api/events/";
+  
+  const res = await api.get(url);
   return res.data.data;
 };
 

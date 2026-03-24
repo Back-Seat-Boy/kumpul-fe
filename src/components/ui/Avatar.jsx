@@ -1,4 +1,8 @@
+import { useState } from "react";
+
 export const Avatar = ({ src, name, size = "md", className = "" }) => {
+  const [imageError, setImageError] = useState(false);
+  
   const sizeClasses = {
     sm: "w-6 h-6 text-xs",
     md: "w-8 h-8 text-sm",
@@ -15,22 +19,26 @@ export const Avatar = ({ src, name, size = "md", className = "" }) => {
         .slice(0, 2)
     : "?";
 
-  if (src) {
+  // Show fallback if no src or image failed to load
+  if (!src || imageError) {
     return (
-      <img
-        src={src}
-        alt={name || "Avatar"}
-        className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
-      />
+      <div
+        className={`${sizeClasses[size]} rounded-full bg-green-100 text-green-700 flex items-center justify-center font-medium ${className}`}
+      >
+        {initials}
+      </div>
     );
   }
 
   return (
-    <div
-      className={`${sizeClasses[size]} rounded-full bg-green-100 text-green-700 flex items-center justify-center font-medium ${className}`}
-    >
-      {initials}
-    </div>
+    <img
+      src={src}
+      alt={name || "Avatar"}
+      className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
+      onError={() => setImageError(true)}
+      referrerPolicy="no-referrer"
+      crossOrigin="anonymous"
+    />
   );
 };
 

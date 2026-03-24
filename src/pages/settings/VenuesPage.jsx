@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Plus, MapPin } from "lucide-react";
+import { Plus, MapPin, Search, ChevronLeft, ChevronRight, X, User } from "lucide-react";
 import { useVenues, useCreateVenue, useUpdateVenue, useDeleteVenue } from "../../hooks/useVenues";
+import { useAuthStore } from "../../store/authStore";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Textarea } from "../../components/ui/Textarea";
@@ -10,14 +11,42 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { VenueCard } from "../../components/venue/VenueCard";
 import { Spinner } from "../../components/ui/Spinner";
 
+const LIMIT = 10;
+
 export const VenuesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVenue, setEditingVenue] = useState(null);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
 
-  const { data: venues, isLoading } = useVenues();
+  const user = useAuthStore((state) => state.user);
+  
+  const { data, isLoading } = useVenues({
+    page,
+    limit: LIMIT,
+    search: search || undefined,
+  });
   const createVenue = useCreateVenue();
   const updateVenue = useUpdateVenue();
   const deleteVenue = useDeleteVenue();
+
+  const venues = data?.venues || [];
+  const total = data?.total || 0;
+  const hasMore = data?.has_more || false;
+  const totalPages = Math.ceil(total / LIMIT);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput("");
+    setSearch("");
+    setPage(1);
+  };
 
   const handleEdit = (venue) => {
     setEditingVenue(venue);
@@ -35,41 +64,118 @@ export const VenuesPage = () => {
     setEditingVenue(null);
   };
 
+  // Check if current user is the venue creator
+  const isVenueOwner = (venue) => {
+    return user && venue.created_by === user.id;
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-gray-900">My Venues</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Venues</h1>
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="w-4 h-4" />
           Add Venue
         </Button>
       </div>
 
+      {/* Search */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search venues..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
+        </form>
+      </div>
+
+      {/* Results count */}
+      {!isLoading && (
+        <p className="text-sm text-gray-500 mb-4">
+          {total} venue{total !== 1 ? "s" : ""} found
+          {search && ` for "${search}"`}
+        </p>
+      )}
+
       {isLoading ? (
         <div className="py-12">
           <Spinner />
         </div>
-      ) : venues?.length > 0 ? (
-        <div className="space-y-3">
-          {venues.map((venue) => (
-            <VenueCard
-              key={venue.id}
-              venue={venue}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+      ) : venues.length > 0 ? (
+        <>
+          <div className="space-y-3">
+            {venues.map((venue) => (
+              <VenueCard
+                key={venue.id}
+                venue={venue}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                isOwner={isVenueOwner(venue)}
+              />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between pt-4 mt-4">
+            <p className="text-sm text-gray-500">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setPage(page - 1)}
+                disabled={page <= 1}
+                className="px-3"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setPage(page + 1)}
+                disabled={!hasMore && page >= totalPages}
+                className="px-3"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       ) : (
         <EmptyState
           icon={MapPin}
-          title="No venues yet"
-          description="Add venues you frequently book for your events."
+          title="No venues found"
+          description={
+            search
+              ? "Try adjusting your search terms."
+              : "Add venues you frequently book for your events."
+          }
           action={
-            <Button onClick={() => setIsModalOpen(true)}>
-              <Plus className="w-4 h-4" />
-              Add Venue
-            </Button>
+            !search ? (
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus className="w-4 h-4" />
+                Add Venue
+              </Button>
+            ) : null
           }
           className="bg-white rounded-xl border border-gray-200 py-12"
         />
@@ -87,9 +193,13 @@ export const VenuesPage = () => {
 };
 
 const VenueModal = ({ isOpen, onClose, venue, onSubmit, isLoading }) => {
-  const { register, handleSubmit, formState: { errors }, reset } = useForm({
-    defaultValues: venue || {},
-  });
+  const { register, handleSubmit, formState: { errors }, reset } = useForm();
+
+  useEffect(() => {
+    if (isOpen) {
+      reset(venue || {});
+    }
+  }, [isOpen, venue, reset]);
 
   const handleClose = () => {
     reset();

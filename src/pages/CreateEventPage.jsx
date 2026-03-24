@@ -19,11 +19,12 @@ export const CreateEventPage = () => {
   const [isVenueModalOpen, setIsVenueModalOpen] = useState(false);
   const showError = useToastStore((state) => state.showError);
 
-  const { data: venues } = useVenues();
+  const { data } = useVenues();
+  const venues = data?.venues || [];
   const createEvent = useCreateEvent();
   const createVenue = useCreateVenue();
 
-  const venueOptions = venues?.map((v) => ({ value: v.id, label: v.name })) || [];
+  const venueOptions = venues.map((v) => ({ value: v.id, label: v.name }));
 
   const addOption = () => {
     if (options.length < 3) {
