@@ -14,6 +14,7 @@ export const PaymentRecordRow = ({
   isCreator,
   onConfirm,
   eventId,
+  eventStatus,
 }) => {
   const [isImageOpen, setIsImageOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -43,6 +44,11 @@ export const PaymentRecordRow = ({
     }
   };
 
+  // Check if there's a difference between paid_amount and current split_amount
+  const hasAmountDifference = record.paid_amount !== undefined && 
+    record.paid_amount !== splitAmount &&
+    record.status === "confirmed";
+
   return (
     <>
       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -55,6 +61,12 @@ export const PaymentRecordRow = ({
           <div>
             <p className="font-medium text-gray-900">{record.user?.name}</p>
             <p className="text-xs text-gray-500">{record.user?.email}</p>
+            {/* Show paid amount info if different from current split */}
+            {hasAmountDifference && (
+              <p className="text-xs text-amber-600 mt-0.5">
+                Paid {formatRupiah(record.paid_amount)} (current: {formatRupiah(splitAmount)})
+              </p>
+            )}
           </div>
         </div>
 
@@ -72,7 +84,8 @@ export const PaymentRecordRow = ({
             </button>
           )}
 
-          {isCreator && record.status === "claimed" && (
+          {/* Confirm button only when payment_open */}
+          {isCreator && eventStatus === "payment_open" && record.status === "claimed" && (
             <Button
               variant="primary"
               onClick={handleConfirm}
@@ -84,7 +97,8 @@ export const PaymentRecordRow = ({
             </Button>
           )}
 
-          {isCreator && record.status === "pending" && (
+          {/* Nudge button only when payment_open */}
+          {isCreator && eventStatus === "payment_open" && record.status === "pending" && (
             <Button
               variant="secondary"
               onClick={handleNudge}

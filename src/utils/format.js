@@ -7,6 +7,32 @@ export const formatRupiah = (amount) => {
   }).format(amount);
 };
 
+// Format number with thousand separators (dots) for display
+export const formatNumberWithDots = (value) => {
+  if (!value && value !== 0) return "";
+  const num = typeof value === "string" ? parseInt(value.replace(/\./g, ""), 10) : value;
+  if (isNaN(num)) return "";
+  return num.toLocaleString("id-ID");
+};
+
+// Remove thousand separators (dots) before sending to API
+export const unformatNumber = (value) => {
+  if (!value) return "";
+  return value.toString().replace(/\./g, "");
+};
+
+// Format balance message from backend to add thousand separators
+// Example: "Event owner needs Rp 300000 more" -> "Event owner needs Rp 300.000 more"
+export const formatBalanceMessage = (message) => {
+  if (!message) return "";
+  
+  // Find all numbers after "Rp " and format them
+  return message.replace(/Rp\s+(\d+)/g, (match, number) => {
+    const formatted = parseInt(number, 10).toLocaleString("id-ID");
+    return `Rp ${formatted}`;
+  });
+};
+
 export const formatDate = (dateStr) => {
   if (!dateStr) return "-";
   return new Intl.DateTimeFormat("id-ID", {
@@ -34,27 +60,19 @@ export const formatDateTime = (dateStr) => {
   }).format(new Date(dateStr));
 };
 
-/**
- * Convert datetime-local input value to RFC3339 format
- * Input: "2026-03-20T18:09" 
- * Output: "2026-03-20T18:09:00+07:00"
- */
 export const toRFC3339 = (datetimeLocal, timezoneOffsetMinutes = -420) => {
   if (!datetimeLocal) return null;
   
-  // Parse the datetime-local value (format: "2026-03-20T18:09")
   const [datePart, timePart] = datetimeLocal.split("T");
   
-  // Ensure time has seconds
   let timeWithSeconds = timePart;
   if (timePart && timePart.split(":").length === 2) {
     timeWithSeconds = `${timePart}:00`;
   }
   
-  // Calculate timezone offset
   const offsetHours = Math.floor(Math.abs(timezoneOffsetMinutes) / 60);
   const offsetMinutes = Math.abs(timezoneOffsetMinutes) % 60;
-  const offsetSign = timezoneOffsetMinutes <= 0 ? "+" : "-"; // Negative means ahead of UTC (e.g., +07:00)
+  const offsetSign = timezoneOffsetMinutes <= 0 ? "+" : "-";
   const offsetStr = `${offsetSign}${String(offsetHours).padStart(2, "0")}:${String(offsetMinutes).padStart(2, "0")}`;
   
   return `${datePart}T${timeWithSeconds}${offsetStr}`;

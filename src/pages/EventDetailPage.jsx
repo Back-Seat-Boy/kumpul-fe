@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink, Crown } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink, Crown, PlusCircle, MinusCircle } from "lucide-react";
 import { useEvent, useUpdateEventStatus, useSetChosenOption } from "../hooks/useEvents";
 import { useOptionsWithVoters, useVotedOptionIds } from "../hooks/useOptions";
-import { useParticipants, useJoinEvent, useLeaveEvent } from "../hooks/useParticipants";
+import { useParticipants, useJoinEvent, useLeaveEvent, useRemoveParticipant } from "../hooks/useParticipants";
 import { useCastVote, useRemoveVote } from "../hooks/useVotes";
 import { useAuthStore } from "../store/authStore";
 import { EventStatusBadge } from "../components/event/EventStatusBadge";
@@ -15,7 +15,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { Spinner } from "../components/ui/Spinner";
-import { formatDate, formatDateTime } from "../utils/format";
+import { formatDate, formatDateTime, formatRupiah } from "../utils/format";
 import { getVenueWhatsAppLink } from "../api/whatsapp";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 
@@ -30,17 +30,17 @@ export const EventDetailPage = () => {
   const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [isContactingVenue, setIsContactingVenue] = useState(false);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
+  const [impactData, setImpactData] = useState(null);
 
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
-  // Use with-voters endpoint to show who voted for each option
   const { data: options } = useOptionsWithVoters(event?.id, shareToken);
   const { data: participants } = useParticipants(shareToken);
 
-  // Use has_voted field from API
   const votedOptionIds = useVotedOptionIds(options);
 
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
+  const removeParticipant = useRemoveParticipant();
   const castVote = useCastVote();
   const removeVote = useRemoveVote();
   const updateStatus = useUpdateEventStatus();
@@ -104,6 +104,20 @@ export const EventDetailPage = () => {
     }
   };
 
+  const handleRemoveParticipant = async (userId) => {
+    if (!confirm("Are you sure you want to remove this participant?")) return;
+    try {
+      await removeParticipant.mutateAsync({
+        eventId: event.id,
+        userId,
+        shareToken,
+        onImpact: (data) => setImpactData(data),
+      });
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
   const handleCloseVoting = async () => {
     if (selectedOptionId) {
       try {
@@ -132,9 +146,53 @@ export const EventDetailPage = () => {
   };
 
   const chosenOption = options?.find((o) => o.id === event.chosen_option_id);
-
-  // Find creator participant
   const creatorParticipant = participants?.find((p) => p.user_id === event.created_by);
+
+  // Helper to get action text
+  const getActionText = (action, amount) => {
+    switch (action) {
+      case "pay_full":
+        return `Needs to pay ${formatRupiah(amount)}`;
+      case "pay_more":
+        return `Pay ${formatRupiah(amount)} more`;
+      case "receive_refund":
+        return `Receive ${formatRupiah(amount)} refund`;
+      case "no_action":
+        return "No change";
+      default:
+        return "";
+    }
+  };
+
+  // Helper to get action style
+  const getActionStyle = (action) => {
+    switch (action) {
+      case "pay_full":
+      case "pay_more":
+        return "text-orange-700 bg-orange-50";
+      case "receive_refund":
+        return "text-green-700 bg-green-50";
+      case "no_action":
+        return "text-green-700 bg-green-50";
+      default:
+        return "text-gray-700 bg-gray-50";
+    }
+  };
+
+  // Helper to get action icon
+  const getActionIcon = (action) => {
+    switch (action) {
+      case "pay_full":
+      case "pay_more":
+        return <MinusCircle className="w-4 h-4" />;
+      case "receive_refund":
+        return <PlusCircle className="w-4 h-4" />;
+      case "no_action":
+        return <Check className="w-4 h-4" />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -164,7 +222,8 @@ export const EventDetailPage = () => {
 
           <div className="flex items-center gap-3 mt-4">
             <ShareButton shareToken={event.share_token} />
-            {sessionId && !isCreator && event.status !== "completed" && (
+            {/* Join/Leave only allowed when status is open or payment_open */}
+            {sessionId && !isCreator && (event.status === "open" || event.status === "payment_open") && (
               <Button
                 variant={hasJoined ? "secondary" : "primary"}
                 onClick={hasJoined ? handleLeave : handleJoin}
@@ -179,7 +238,7 @@ export const EventDetailPage = () => {
 
       {/* Content */}
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {/* Chosen Option (if confirmed or beyond) */}
+        {/* Chosen Option */}
         {chosenOption && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4">
             <div className="flex items-center gap-2 text-green-800 mb-2">
@@ -285,7 +344,6 @@ export const EventDetailPage = () => {
               </span>
             </div>
             
-            {/* Creator badge */}
             {creatorParticipant && (
               <div className="flex items-center gap-2 mb-3 p-2 bg-amber-50 rounded-lg border border-amber-100">
                 <Avatar
@@ -303,10 +361,13 @@ export const EventDetailPage = () => {
               </div>
             )}
             
-            {/* Participants list with names */}
             <ParticipantList 
               participants={participants?.filter((p) => p.user_id !== event.created_by)} 
               isCreatorId={event.created_by}
+              isCreator={isCreator}
+              onRemove={handleRemoveParticipant}
+              eventId={event.id}
+              eventStatus={event.status}
               maxDisplay={showAllParticipants ? 100 : 5}
             />
             
@@ -333,7 +394,7 @@ export const EventDetailPage = () => {
               </Button>
             </div>
             <p className="text-sm text-gray-600">
-              Payment collection is open. Click &quot;View Details&quot; to see payment info and submit your proof.
+              Payment collection is open. Click "View Details" to see payment info and submit your proof.
             </p>
           </div>
         )}
@@ -386,6 +447,73 @@ export const EventDetailPage = () => {
             Confirm
           </Button>
         </div>
+      </Modal>
+
+      {/* Impact Modal - Shows financial impact when removing participants */}
+      <Modal
+        isOpen={!!impactData}
+        onClose={() => setImpactData(null)}
+        title="Participant Removed"
+      >
+        {impactData && (
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <p className="text-sm text-blue-800">
+                Split amount changed from{" "}
+                <strong>{formatRupiah(impactData.old_split_amount)}</strong> to{" "}
+                <strong>{formatRupiah(impactData.new_split_amount)}</strong>
+              </p>
+            </div>
+            
+            {impactData.impacts && impactData.impacts.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Impact on remaining participants:</p>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {impactData.impacts.map((impact) => (
+                    <div
+                      key={impact.user_id}
+                      className={`p-3 rounded-lg ${getActionStyle(impact.action)}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getActionIcon(impact.action)}
+                          <span className="font-medium">{impact.user_name}</span>
+                        </div>
+                        <span className="text-sm font-medium">
+                          {getActionText(impact.action, impact.action_amount)}
+                        </span>
+                      </div>
+                      {impact.paid_amount > 0 && (
+                        <p className="text-xs mt-1 opacity-75">
+                          Paid: {formatRupiah(impact.paid_amount)} | New split: {formatRupiah(impact.new_split)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <Button 
+                variant="secondary"
+                onClick={() => setImpactData(null)} 
+                className="flex-1"
+              >
+                Got it
+              </Button>
+              <Button 
+                onClick={() => {
+                  setImpactData(null);
+                  navigate(`/events/${shareToken}/payment`);
+                }} 
+                className="flex-1"
+              >
+                Go to Payment
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

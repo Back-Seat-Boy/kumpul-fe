@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
-import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Send } from "lucide-react";
 import { Button } from "../ui/Button";
 
-export const ProofUploader = ({ onUpload, isUploading }) => {
+export const ProofUploader = ({ onUpload, isUploading, optional = false, showSkipButton = true }) => {
   const [preview, setPreview] = useState(null);
   const [base64Image, setBase64Image] = useState(null);
   const inputRef = useRef(null);
@@ -48,23 +48,42 @@ export const ProofUploader = ({ onUpload, isUploading }) => {
     handleClear();
   };
 
+  const handleSubmitWithoutProof = async () => {
+    await onUpload(null);
+    handleClear();
+  };
+
   return (
     <div className="space-y-3">
       {!preview ? (
-        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors">
-          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-            <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
-            <p className="text-sm text-gray-500">Click to upload payment proof</p>
-            <p className="text-xs text-gray-400">PNG, JPG up to 5MB</p>
-          </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-        </label>
+        <>
+          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors">
+            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+              <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
+              <p className="text-sm text-gray-500">Click to upload payment proof</p>
+              <p className="text-xs text-gray-400">PNG, JPG up to 5MB</p>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+          </label>
+          
+          {optional && showSkipButton && (
+            <Button
+              onClick={handleSubmitWithoutProof}
+              loading={isUploading}
+              variant="secondary"
+              className="w-full"
+            >
+              <Send className="w-4 h-4" />
+              Submit Without Proof
+            </Button>
+          )}
+        </>
       ) : (
         <div className="relative">
           <img

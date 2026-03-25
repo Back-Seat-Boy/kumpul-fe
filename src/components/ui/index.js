@@ -8,3 +8,4 @@ export { EmptyState } from "./EmptyState";
 export { Spinner } from "./Spinner";
 export { Select } from "./Select";
 export { ToastContainer } from "./Toast";
+export { CurrencyInput } from "./CurrencyInput";

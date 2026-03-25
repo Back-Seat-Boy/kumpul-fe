@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
-import { listParticipants, joinEvent, leaveEvent } from "../api/participants";
+import { listParticipants, joinEvent, leaveEvent, removeParticipant } from "../api/participants";
 
 export const useParticipants = (shareToken) => {
   const showError = useToastStore((state) => state.showError);
@@ -24,8 +24,9 @@ export const useJoinEvent = () => {
 
   return useMutation({
     mutationFn: ({ eventId, shareToken }) => joinEvent(eventId),
-    onSuccess: (_, { shareToken }) => {
+    onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("You joined the event");
     },
     onError: (error) => {
@@ -41,9 +42,35 @@ export const useLeaveEvent = () => {
 
   return useMutation({
     mutationFn: ({ eventId, shareToken }) => leaveEvent(eventId),
-    onSuccess: (_, { shareToken }) => {
+    onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("You left the event");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useRemoveParticipant = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, userId }) => removeParticipant(eventId, userId),
+    onSuccess: (data, { eventId, shareToken, onImpact }) => {
+      queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
+      
+      // Call the onImpact callback with the impacts data if provided
+      if (onImpact && data.impacts) {
+        onImpact(data);
+      } else {
+        // Fallback to simple toast
+        showSuccess(data.message || "Participant removed");
+      }
     },
     onError: (error) => {
       showError(getErrorMessage(error));

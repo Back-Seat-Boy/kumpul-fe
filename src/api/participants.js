@@ -19,3 +19,9 @@ export const leaveEvent = async (eventId) => {
   const res = await api.delete(`/api/events/${eventId}/participants/`);
   return res.data;
 };
+
+// NEW: Creator can remove a participant
+export const removeParticipant = async (eventId, userId) => {
+  const res = await api.delete(`/api/events/${eventId}/participants/${userId}/`);
+  return res.data.data;
+};

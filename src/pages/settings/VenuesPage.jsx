@@ -5,6 +5,7 @@ import { useVenues, useCreateVenue, useUpdateVenue, useDeleteVenue } from "../..
 import { useAuthStore } from "../../store/authStore";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+import { CurrencyInput } from "../../components/ui/CurrencyInput";
 import { Textarea } from "../../components/ui/Textarea";
 import { Modal } from "../../components/ui/Modal";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -64,7 +65,6 @@ export const VenuesPage = () => {
     setEditingVenue(null);
   };
 
-  // Check if current user is the venue creator
   const isVenueOwner = (venue) => {
     return user && venue.created_by === user.id;
   };
@@ -79,7 +79,6 @@ export const VenuesPage = () => {
         </Button>
       </div>
 
-      {/* Search */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
         <form onSubmit={handleSearch} className="flex gap-2">
           <div className="relative flex-1">
@@ -107,7 +106,6 @@ export const VenuesPage = () => {
         </form>
       </div>
 
-      {/* Results count */}
       {!isLoading && (
         <p className="text-sm text-gray-500 mb-4">
           {total} venue{total !== 1 ? "s" : ""} found
@@ -133,7 +131,6 @@ export const VenuesPage = () => {
             ))}
           </div>
 
-          {/* Pagination */}
           <div className="flex items-center justify-between pt-4 mt-4">
             <p className="text-sm text-gray-500">
               Page {page} of {totalPages}
@@ -193,7 +190,8 @@ export const VenuesPage = () => {
 };
 
 const VenueModal = ({ isOpen, onClose, venue, onSubmit, isLoading }) => {
-  const { register, handleSubmit, formState: { errors }, reset } = useForm();
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm();
+  const pricePerHour = watch("price_per_hour");
 
   useEffect(() => {
     if (isOpen) {
@@ -246,10 +244,10 @@ const VenueModal = ({ isOpen, onClose, venue, onSubmit, isLoading }) => {
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <Input
+          <CurrencyInput
             label="Price per Hour"
-            type="number"
-            {...register("price_per_hour")}
+            value={pricePerHour}
+            onChange={(e) => setValue("price_per_hour", e.target.value)}
           />
           <Input
             label="Court Count"

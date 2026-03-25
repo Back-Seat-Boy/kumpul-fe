@@ -1,7 +1,15 @@
-import { Users, Crown } from "lucide-react";
+import { Users, Crown, X } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 
-export const ParticipantList = ({ participants, maxDisplay = 5, isCreatorId }) => {
+export const ParticipantList = ({ 
+  participants, 
+  maxDisplay = 5, 
+  isCreatorId, 
+  isCreator = false,
+  onRemove,
+  eventId,
+  eventStatus,
+}) => {
   if (!participants || participants.length === 0) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -21,7 +29,7 @@ export const ParticipantList = ({ participants, maxDisplay = 5, isCreatorId }) =
         {displayParticipants.map((participant) => (
           <div
             key={participant.id}
-            className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-full"
+            className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-full group"
           >
             <Avatar
               src={participant.user?.avatar_url}
@@ -33,6 +41,17 @@ export const ParticipantList = ({ participants, maxDisplay = 5, isCreatorId }) =
             </span>
             {isCreatorId && participant.user_id === isCreatorId && (
               <Crown className="w-3 h-3 text-amber-500" />
+            )}
+            {/* Show remove button for creator (except for themselves) - only when open or payment_open */}
+            {isCreator && onRemove && participant.user_id !== isCreatorId && 
+             (eventStatus === "open" || eventStatus === "payment_open") && (
+              <button
+                onClick={() => onRemove(participant.user_id)}
+                className="p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Remove participant"
+              >
+                <X className="w-3 h-3" />
+              </button>
             )}
           </div>
         ))}
