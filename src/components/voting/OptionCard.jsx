@@ -1,8 +1,36 @@
-import { MapPin, Calendar, Clock, Users } from "lucide-react";
+import { MapPin, Calendar, Clock, Users, ExternalLink } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Avatar } from "../ui/Avatar";
 import { formatDate, formatTime } from "../../utils/format";
 import { useAuthStore } from "../../store/authStore";
+
+const getEmbeddableMapUrl = (mapsUrl) => {
+  if (!mapsUrl) return null;
+
+  try {
+    const url = new URL(mapsUrl);
+    const hostname = url.hostname.toLowerCase();
+
+    // Google short links redirect in-browser, but they do not produce useful embeds.
+    if (hostname.includes("maps.app.goo.gl")) {
+      return null;
+    }
+
+    if (hostname.includes("google.com") || hostname.includes("google.co.id")) {
+      if (url.pathname.startsWith("/maps/embed")) {
+        return mapsUrl;
+      }
+
+      if (url.pathname.startsWith("/maps")) {
+        return `https://www.google.com/maps?q=${encodeURIComponent(mapsUrl)}&z=15&output=embed`;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 export const OptionCard = ({
   option,
@@ -22,6 +50,9 @@ export const OptionCard = ({
       onVote();
     }
   };
+
+  const mapsUrl = option.venue?.maps_url;
+  const embedMapUrl = getEmbeddableMapUrl(mapsUrl);
 
   return (
     <div
@@ -62,6 +93,31 @@ export const OptionCard = ({
           {formatTime(option.start_time)} - {formatTime(option.end_time)}
         </span>
       </div>
+
+      {mapsUrl && (
+        <div className="mt-3 space-y-2">
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-800"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Open Map
+          </a>
+          {embedMapUrl && (
+            <div className="overflow-hidden rounded-lg border border-gray-200">
+              <iframe
+                title={`Map for ${option.venue?.name || "venue"}`}
+                src={embedMapUrl}
+                className="h-48 w-full border-0"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Show voters with names and avatars */}
       {option.voters && option.voters.length > 0 && (

@@ -1,4 +1,4 @@
-import { MapPin, Phone, DollarSign, LayoutGrid, Pencil, Trash2, User } from "lucide-react";
+import { MapPin, Phone, DollarSign, LayoutGrid, Pencil, Trash2, User, ExternalLink } from "lucide-react";
 import { formatRupiah } from "../../utils/format";
 import { Avatar } from "../ui/Avatar";
 
@@ -66,6 +66,17 @@ export const VenueCard = ({ venue, onEdit, onDelete, isOwner }) => {
             <LayoutGrid className="w-3.5 h-3.5" />
             {venue.court_count} courts
           </span>
+        )}
+        {venue.maps_url && (
+          <a
+            href={venue.maps_url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 text-green-700 hover:text-green-800"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Open map
+          </a>
         )}
       </div>
 

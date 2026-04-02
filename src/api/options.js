@@ -13,9 +13,9 @@ export const listOptionsAuthenticated = async (eventId) => {
   return res.data.data;
 };
 
-// NEW: Get options with voter details (for displaying who voted)
-export const listOptionsWithVoters = async (eventId) => {
-  const res = await api.get(`/api/events/${eventId}/options/with-voters/`);
+// Public endpoint - can still include auth header automatically when user is logged in
+export const listOptionsWithVoters = async (shareToken) => {
+  const res = await api.get(`/events/${shareToken}/options/with-voters/`);
   return res.data.data;
 };
 

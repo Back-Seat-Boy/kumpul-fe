@@ -1,4 +1,4 @@
-import { Users, Crown, X } from "lucide-react";
+import { Users, Crown, UserRound, X } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 
 export const ParticipantList = ({ 
@@ -31,22 +31,27 @@ export const ParticipantList = ({
             key={participant.id}
             className="flex items-center gap-2 px-2 py-1.5 bg-gray-100 rounded-full group"
           >
-            <Avatar
-              src={participant.user?.avatar_url}
-              name={participant.user?.name}
-              size="sm"
-            />
-            <span className="text-sm text-gray-700 pr-1">
-              {participant.user?.name}
+            {participant.is_guest ? (
+              <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center">
+                <UserRound className="w-3.5 h-3.5" />
+              </div>
+            ) : (
+              <Avatar
+                src={participant.user?.avatar_url}
+                name={participant.user?.name}
+                size="sm"
+              />
+            )}
+            <span className={`text-sm text-gray-700 pr-1 ${participant.is_guest ? "italic" : ""}`}>
+              {participant.is_guest ? participant.guest_name : participant.user?.name}
             </span>
             {isCreatorId && participant.user_id === isCreatorId && (
               <Crown className="w-3 h-3 text-amber-500" />
             )}
-            {/* Show remove button for creator (except for themselves) - only when open or payment_open */}
             {isCreator && onRemove && participant.user_id !== isCreatorId && 
              (eventStatus === "open" || eventStatus === "payment_open") && (
               <button
-                onClick={() => onRemove(participant.user_id)}
+                onClick={() => onRemove(participant)}
                 className="p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                 title="Remove participant"
               >

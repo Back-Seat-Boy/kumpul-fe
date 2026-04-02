@@ -1,18 +1,19 @@
 import { useState } from "react";
-import { Check, X, Eye, MessageCircle } from "lucide-react";
+import { Check, Eye, MessageCircle, Pencil, UserRound } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
-import { formatRupiah } from "../../utils/format";
+import { formatDateTime, formatRupiah } from "../../utils/format";
 import { getNudgeWhatsAppLink } from "../../api/whatsapp";
 import { useToastStore, getErrorMessage } from "../../utils/toast";
 
 export const PaymentRecordRow = ({
   record,
-  splitAmount,
+  settlement,
   isCreator,
   onConfirm,
+  onEdit,
   eventId,
   eventStatus,
 }) => {
@@ -24,7 +25,7 @@ export const PaymentRecordRow = ({
   const handleConfirm = async () => {
     setIsConfirming(true);
     try {
-      await onConfirm(record.user_id);
+      await onConfirm(record.participant_id);
     } catch (error) {
       showError(getErrorMessage(error));
     } finally {
@@ -35,7 +36,7 @@ export const PaymentRecordRow = ({
   const handleNudge = async () => {
     setIsNudging(true);
     try {
-      const { link } = await getNudgeWhatsAppLink(eventId, record.user_id);
+      const { link } = await getNudgeWhatsAppLink(eventId, record.participant.user_id);
       window.open(link, "_blank");
     } catch (error) {
       showError(getErrorMessage(error));
@@ -44,48 +45,106 @@ export const PaymentRecordRow = ({
     }
   };
 
-  // Check if there's a difference between paid_amount and current split_amount
-  const hasAmountDifference = record.paid_amount !== undefined && 
-    record.paid_amount !== splitAmount &&
-    record.status === "confirmed";
+  const isGuestParticipant = !record.participant?.user_id;
+  const participantName = isGuestParticipant
+    ? record.participant?.guest_name
+    : record.participant?.user?.name;
+  const claims = record.claims || [];
+  const latestClaim = claims[0];
+  const hasClaimHistory = claims.length > 0;
+  const canNudge = Boolean(record.participant?.user_id && record.participant?.user?.whatsapp_number);
+  const canEdit = isCreator && eventStatus === "payment_open";
+  const needsAdditionalPayment = settlement?.action === "pay_more" || settlement?.action === "pay_full";
+  const canCreatorConfirm =
+    isCreator &&
+    eventStatus === "payment_open" &&
+    (record.status === "pending" || record.status === "claimed" || needsAdditionalPayment);
+  const canCreatorNudge =
+    isCreator &&
+    eventStatus === "payment_open" &&
+    canNudge &&
+    (record.status === "pending" || needsAdditionalPayment);
+  const settlementText =
+    settlement?.action && settlement.action !== "no_action"
+      ? settlement.action === "pay_full"
+        ? `Needs ${formatRupiah(settlement.action_amount)}`
+        : settlement.action === "pay_more"
+          ? `Needs ${formatRupiah(settlement.action_amount)} more`
+          : `Refund ${formatRupiah(settlement.action_amount)}`
+      : null;
 
   return (
     <>
       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
         <div className="flex items-center gap-3">
-          <Avatar
-            src={record.user?.avatar_url}
-            name={record.user?.name}
-            size="md"
-          />
+          {isGuestParticipant ? (
+            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center">
+              <UserRound className="w-4 h-4" />
+            </div>
+          ) : (
+            <Avatar
+              src={record.participant?.user?.avatar_url}
+              name={record.participant?.user?.name}
+              size="md"
+            />
+          )}
           <div>
-            <p className="font-medium text-gray-900">{record.user?.name}</p>
-            <p className="text-xs text-gray-500">{record.user?.email}</p>
-            {/* Show paid amount info if different from current split */}
-            {hasAmountDifference && (
-              <p className="text-xs text-amber-600 mt-0.5">
-                Paid {formatRupiah(record.paid_amount)} (current: {formatRupiah(splitAmount)})
+            <p className={`font-medium text-gray-900 ${isGuestParticipant ? "italic" : ""}`}>
+              {participantName}
+            </p>
+            <p className="text-sm text-gray-700">
+              {formatRupiah(record.amount)}
+            </p>
+            {record.note && (
+              <p className="text-xs text-gray-500">{record.note}</p>
+            )}
+            {settlementText && (
+              <p
+                className={`text-xs mt-0.5 ${
+                  settlement?.action === "receive_refund"
+                    ? "text-green-700"
+                    : "text-amber-700"
+                }`}
+              >
+                {record.status === "confirmed" && record.paid_amount > 0
+                  ? `Paid ${formatRupiah(record.paid_amount)}. ${settlementText}.`
+                  : settlementText}
               </p>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant={record.status}>
+          <Badge
+            variant={record.status === "confirmed" ? "pending" : record.status}
+            className={record.status === "confirmed" ? "bg-green-100 text-green-700" : ""}
+          >
             {record.status === "confirmed" ? "Paid" : record.status}
           </Badge>
 
-          {record.status === "claimed" && record.proof_image_url && (
+          {hasClaimHistory && (
             <button
               onClick={() => setIsImageOpen(true)}
               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+              title="View claim history"
             >
               <Eye className="w-4 h-4" />
             </button>
           )}
 
           {/* Confirm button only when payment_open */}
-          {isCreator && eventStatus === "payment_open" && record.status === "claimed" && (
+          {canEdit && (
+            <Button
+              variant="ghost"
+              onClick={() => onEdit(record)}
+              className="px-2 py-1 text-xs"
+            >
+              <Pencil className="w-3 h-3" />
+              Edit
+            </Button>
+          )}
+
+          {canCreatorConfirm && (
             <Button
               variant="primary"
               onClick={handleConfirm}
@@ -98,7 +157,7 @@ export const PaymentRecordRow = ({
           )}
 
           {/* Nudge button only when payment_open */}
-          {isCreator && eventStatus === "payment_open" && record.status === "pending" && (
+          {canCreatorNudge && (
             <Button
               variant="secondary"
               onClick={handleNudge}
@@ -112,18 +171,61 @@ export const PaymentRecordRow = ({
         </div>
       </div>
 
-      {/* Proof Image Modal */}
+      {/* Claim History Modal */}
       <Modal
         isOpen={isImageOpen}
         onClose={() => setIsImageOpen(false)}
-        title="Payment Proof"
+        title="Payment Claims"
         size="md"
       >
-        <img
-          src={record.proof_image_url}
-          alt="Payment proof"
-          className="w-full rounded-lg"
-        />
+        {hasClaimHistory ? (
+          <div className="space-y-3">
+            {latestClaim?.status === "claimed" && (
+              <p className="text-sm text-gray-500">
+                Latest claim is still waiting for organizer confirmation.
+              </p>
+            )}
+
+            {claims.map((claim) => (
+              <div key={claim.id} className="rounded-xl border border-gray-200 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      Claimed {formatRupiah(claim.claimed_amount)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Submitted {formatDateTime(claim.claimed_at)}
+                    </p>
+                    {claim.confirmed_at && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Confirmed {formatDateTime(claim.confirmed_at)}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant={claim.status}>
+                    {claim.status === "confirmed" ? "Confirmed" : "Claimed"}
+                  </Badge>
+                </div>
+
+                {claim.note && (
+                  <p className="mt-2 text-sm text-gray-600">{claim.note}</p>
+                )}
+
+                {claim.proof_image_url ? (
+                  <img
+                    src={claim.proof_image_url}
+                    alt="Payment proof"
+                    className="mt-3 w-full rounded-lg"
+                  />
+                ) : (
+                  <p className="mt-2 text-xs text-gray-400">No proof image uploaded.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">No claim history yet.</p>
+        )}
       </Modal>
     </>
   );

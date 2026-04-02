@@ -24,8 +24,8 @@ export const useOptionsWithVoters = (eventId, shareToken) => {
   
   return useQuery({
     queryKey: ["event", shareToken, "options", "with-voters"],
-    queryFn: () => listOptionsWithVoters(eventId),
-    enabled: !!eventId,
+    queryFn: () => listOptionsWithVoters(shareToken),
+    enabled: !!shareToken,
     meta: {
       onError: (error) => {
         showError(getErrorMessage(error));

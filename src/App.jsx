@@ -31,6 +31,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/events/:shareToken" element={<EventDetailPage />} />
+          <Route path="/events/:shareToken/payment" element={<PaymentPage />} />
         </Route>
 
         {/* Protected routes */}
@@ -43,7 +44,6 @@ function App() {
         >
           <Route path="/" element={<HomePage />} />
           <Route path="/events/new" element={<CreateEventPage />} />
-          <Route path="/events/:shareToken/payment" element={<PaymentPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/settings/venues" element={<VenuesPage />} />
         </Route>

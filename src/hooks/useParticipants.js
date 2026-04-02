@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
-import { listParticipants, joinEvent, leaveEvent, removeParticipant } from "../api/participants";
+import {
+  listParticipants,
+  joinEvent,
+  addGuestParticipant,
+  leaveEvent,
+  removeParticipant,
+} from "../api/participants";
 
 export const useParticipants = (shareToken) => {
   const showError = useToastStore((state) => state.showError);
@@ -53,13 +59,31 @@ export const useLeaveEvent = () => {
   });
 };
 
+export const useAddGuestParticipant = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, guestName }) => addGuestParticipant(eventId, guestName),
+    onSuccess: (_, { eventId, shareToken }) => {
+      queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
+      showSuccess("Guest added");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
 export const useRemoveParticipant = () => {
   const queryClient = useQueryClient();
   const showError = useToastStore((state) => state.showError);
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   return useMutation({
-    mutationFn: ({ eventId, userId }) => removeParticipant(eventId, userId),
+    mutationFn: ({ eventId, participantId }) => removeParticipant(eventId, participantId),
     onSuccess: (data, { eventId, shareToken, onImpact }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });

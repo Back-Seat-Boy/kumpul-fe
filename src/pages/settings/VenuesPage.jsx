@@ -238,6 +238,12 @@ const VenueModal = ({ isOpen, onClose, venue, onSubmit, isLoading }) => {
         />
 
         <Input
+          label="Google Maps URL"
+          placeholder="https://maps.app.goo.gl/... or https://maps.google.com/..."
+          {...register("maps_url")}
+        />
+
+        <Input
           label="WhatsApp Number"
           placeholder="6281234567890"
           {...register("whatsapp_number")}

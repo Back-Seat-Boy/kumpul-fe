@@ -1,14 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
-import { getPayment, createPayment, claimPayment, confirmPayment, adjustPayment } from "../api/payments";
+import {
+  getPayment,
+  createPayment,
+  updatePayment,
+  chargeAllPayments,
+  claimPayment,
+  confirmPayment,
+  adjustPayment,
+} from "../api/payments";
 
-export const usePayment = (eventId) => {
+export const usePayment = (eventId, enabled = true) => {
   const showError = useToastStore((state) => state.showError);
   
   return useQuery({
     queryKey: ["events", eventId, "payment"],
     queryFn: () => getPayment(eventId),
-    enabled: !!eventId,
+    enabled: !!eventId && enabled,
     meta: {
       onError: (error) => {
         showError(getErrorMessage(error));
@@ -34,6 +42,23 @@ export const useCreatePayment = () => {
   });
 };
 
+export const useUpdatePayment = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, data }) => updatePayment(eventId, data),
+    onSuccess: (_, { eventId }) => {
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
+      showSuccess("Payment info updated");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
 export const useClaimPayment = () => {
   const queryClient = useQueryClient();
   const showError = useToastStore((state) => state.showError);
@@ -51,13 +76,30 @@ export const useClaimPayment = () => {
   });
 };
 
+export const useChargeAllPayments = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, data }) => chargeAllPayments(eventId, data),
+    onSuccess: (_, { eventId }) => {
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
+      showSuccess("Charge applied to all participants");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
 export const useConfirmPayment = () => {
   const queryClient = useQueryClient();
   const showError = useToastStore((state) => state.showError);
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   return useMutation({
-    mutationFn: ({ eventId, userId }) => confirmPayment(eventId, userId),
+    mutationFn: ({ eventId, participantId, data }) => confirmPayment(eventId, participantId, data),
     onSuccess: (_, { eventId }) => {
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("Payment confirmed");
@@ -74,7 +116,7 @@ export const useAdjustPayment = () => {
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   return useMutation({
-    mutationFn: ({ eventId, userId, data }) => adjustPayment(eventId, userId, data),
+    mutationFn: ({ eventId, participantId, data }) => adjustPayment(eventId, participantId, data),
     onSuccess: (_, { eventId }) => {
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("Payment adjusted");

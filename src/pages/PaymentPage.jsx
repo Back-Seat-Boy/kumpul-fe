@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle, Clock, AlertCircle, Copy, Wallet, TrendingUp, MinusCircle, PlusCircle, Check, Upload } from "lucide-react";
-import { usePayment, useCreatePayment, useClaimPayment, useConfirmPayment, useAdjustPayment } from "../hooks/usePayments";
+import { ArrowLeft, CheckCircle, Clock, AlertCircle, Copy, Wallet, TrendingUp, MinusCircle, PlusCircle, Check, Pencil } from "lucide-react";
+import { usePayment, useCreatePayment, useChargeAllPayments, useClaimPayment, useConfirmPayment, useAdjustPayment, useUpdatePayment } from "../hooks/usePayments";
 import { useEvent, useUpdateEventStatus } from "../hooks/useEvents";
-import { useParticipants } from "../hooks/useParticipants";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "../components/ui/Button";
 import { CurrencyInput } from "../components/ui/CurrencyInput";
@@ -11,17 +10,9 @@ import { Modal } from "../components/ui/Modal";
 import { Spinner } from "../components/ui/Spinner";
 import { PaymentRecordRow } from "../components/payment/PaymentRecordRow";
 import { ProofUploader } from "../components/payment/ProofUploader";
-import { formatRupiah, formatNumberWithDots } from "../utils/format";
+import { formatRupiah } from "../utils/format";
 import { uploadImage } from "../api/uploads";
 import { useToastStore, getErrorMessage } from "../utils/toast";
-
-const formatRupiahInMessage = (message) => {
-  if (!message) return "";
-  return message.replace(/Rp\s*(\d+)/g, (match, number) => {
-    const formatted = formatNumberWithDots(number);
-    return `Rp ${formatted}`;
-  });
-};
 
 // Helper to get action icon and color
 const getActionStyle = (action) => {
@@ -70,12 +61,15 @@ const getActionButtonText = (action) => {
 export const PaymentPage = () => {
   const { shareToken } = useParams();
   const user = useAuthStore((state) => state.user);
+  const sessionId = useAuthStore((state) => state.sessionId);
   const showError = useToastStore((state) => state.showError);
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [totalCost, setTotalCost] = useState("");
   const [paymentInfo, setPaymentInfo] = useState("");
+  const [isEditPaymentInfoOpen, setIsEditPaymentInfoOpen] = useState(false);
+  const [editedPaymentInfo, setEditedPaymentInfo] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   
   // Adjustment modal state
@@ -85,12 +79,16 @@ export const PaymentPage = () => {
   const [adjustNote, setAdjustNote] = useState("");
   const [adjustProofUrl, setAdjustProofUrl] = useState("");
   const [isAdjustUploading, setIsAdjustUploading] = useState(false);
+  const [chargeAllOpen, setChargeAllOpen] = useState(false);
+  const [chargeAllAmount, setChargeAllAmount] = useState("");
+  const [chargeAllNote, setChargeAllNote] = useState("");
 
   const { data: event } = useEvent(shareToken);
-  const { data: participants } = useParticipants(shareToken);
-  const { data: paymentData, isLoading } = usePayment(event?.id);
+  const { data: paymentData, isLoading } = usePayment(event?.id, !!sessionId);
 
   const createPayment = useCreatePayment();
+  const updatePayment = useUpdatePayment();
+  const chargeAllPayments = useChargeAllPayments();
   const updateEventStatus = useUpdateEventStatus();
   const claimPayment = useClaimPayment();
   const confirmPayment = useConfirmPayment();
@@ -101,12 +99,24 @@ export const PaymentPage = () => {
   const records = paymentData?.records || [];
   const summary = paymentData?.summary;
   const perPersonStatus = summary?.per_person_status || [];
+  const perPersonStatusMap = new Map(
+    perPersonStatus.map((person) => [person.participant_id, person]),
+  );
+  const unsettledPeople = perPersonStatus.filter((person) => person.action !== "no_action");
 
   const confirmedCount = summary?.num_confirmed ?? records.filter((r) => r.status === "confirmed").length;
   const claimedCount = summary?.num_claimed ?? records.filter((r) => r.status === "claimed").length;
   const pendingCount = summary?.num_pending ?? records.filter((r) => r.status === "pending").length;
 
-  const userRecord = records.find((r) => r.user_id === user?.id);
+  const userRecord = records.find((r) => r.participant?.user_id === user?.id);
+  const userSettlement = userRecord
+    ? perPersonStatusMap.get(userRecord.participant_id)
+    : null;
+  const canUserSubmitPayment =
+    !isCreator &&
+    event?.status === "payment_open" &&
+    userRecord &&
+    (userSettlement?.action === "pay_full" || userSettlement?.action === "pay_more");
 
   const handleCreatePayment = async () => {
     try {
@@ -130,6 +140,22 @@ export const PaymentPage = () => {
     }
   };
 
+  const handleUpdatePaymentInfo = async () => {
+    if (!editedPaymentInfo.trim()) return;
+
+    try {
+      await updatePayment.mutateAsync({
+        eventId: event.id,
+        data: {
+          payment_info: editedPaymentInfo.trim(),
+        },
+      });
+      setIsEditPaymentInfoOpen(false);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
   const handleUploadProof = async (base64Image) => {
     // If no image provided, submit claim without proof
     if (!base64Image) {
@@ -148,9 +174,9 @@ export const PaymentPage = () => {
     }
   };
 
-  const handleConfirmPayment = async (userId) => {
+  const handleConfirmPayment = async (participantId) => {
     try {
-      await confirmPayment.mutateAsync({ eventId: event.id, userId });
+      await confirmPayment.mutateAsync({ eventId: event.id, participantId });
     } catch (error) {
       showError(getErrorMessage(error));
     }
@@ -163,10 +189,15 @@ export const PaymentPage = () => {
     }
   };
 
+  const openEditPaymentInfoModal = () => {
+    setEditedPaymentInfo(payment?.payment_info || "");
+    setIsEditPaymentInfoOpen(true);
+  };
+
   const openAdjustModal = (person) => {
     setAdjustPerson(person);
-    setAdjustAmount(person.action_amount?.toString() || "");
-    setAdjustNote("");
+    setAdjustAmount(person.amount?.toString() || person.action_amount?.toString() || "");
+    setAdjustNote(person.note || "");
     setAdjustProofUrl("");
     setAdjustModalOpen(true);
   };
@@ -193,23 +224,12 @@ export const PaymentPage = () => {
     if (!adjustPerson || !adjustAmount) return;
     
     try {
-      const amount = parseInt(adjustAmount);
-      let adjustmentAmount;
-      
-      // Determine adjustment direction based on action
-      if (adjustPerson.action === "receive_refund") {
-        // Refund is negative adjustment
-        adjustmentAmount = -Math.abs(amount);
-      } else {
-        // Additional payment is positive adjustment
-        adjustmentAmount = Math.abs(amount);
-      }
-      
+      const amount = parseInt(adjustAmount, 10);
       await adjustPayment.mutateAsync({
         eventId: event.id,
-        userId: adjustPerson.user_id,
+        participantId: adjustPerson.participant_id,
         data: {
-          adjustment_amount: adjustmentAmount,
+          amount,
           note: adjustNote || undefined,
           proof_image_url: adjustProofUrl || undefined,
         },
@@ -220,6 +240,25 @@ export const PaymentPage = () => {
       setAdjustAmount("");
       setAdjustNote("");
       setAdjustProofUrl("");
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
+  const handleChargeAll = async () => {
+    if (!chargeAllAmount || !chargeAllNote.trim()) return;
+
+    try {
+      await chargeAllPayments.mutateAsync({
+        eventId: event.id,
+        data: {
+          amount: parseInt(chargeAllAmount, 10),
+          note: chargeAllNote.trim(),
+        },
+      });
+      setChargeAllAmount("");
+      setChargeAllNote("");
+      setChargeAllOpen(false);
     } catch (error) {
       showError(getErrorMessage(error));
     }
@@ -249,7 +288,20 @@ export const PaymentPage = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {!payment ? (
+        {!sessionId ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+            <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              Login Required
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              This payment page is public to open, but you need to log in to view payment details or submit payment.
+            </p>
+            <Link to="/login" className="inline-flex">
+              <Button>Continue to Login</Button>
+            </Link>
+          </div>
+        ) : !payment ? (
           isCreator ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
               <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
@@ -287,18 +339,47 @@ export const PaymentPage = () => {
             {/* Financial Summary */}
             {summary && (
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                  Financial Summary
-                </h2>
-                
-                <div className="flex items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg">
-                  <span className="text-sm text-gray-600">Current Split</span>
-                  <span className="text-lg font-bold text-blue-700">
-                    {formatRupiah(payment.split_amount)}/person
-                  </span>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                      Payment Summary
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Base split reference: {formatRupiah(payment.base_split)}/orang
+                    </p>
+                  </div>
+                  {isCreator && event.status === "payment_open" && (
+                    <Button variant="secondary" onClick={() => setChargeAllOpen(true)} className="shrink-0">
+                      Add Charge to Everyone
+                    </Button>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-3 gap-3 mt-4 mb-4 text-center">
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <div className="flex items-center justify-center gap-1 text-green-700 mb-1">
+                      <CheckCircle className="w-4 h-4" />
+                      <span className="text-lg font-bold">{confirmedCount}</span>
+                    </div>
+                    <span className="text-xs text-gray-500">Confirmed</span>
+                  </div>
+                  <div className="p-3 bg-yellow-50 rounded-lg">
+                    <div className="flex items-center justify-center gap-1 text-yellow-700 mb-1">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-lg font-bold">{claimedCount}</span>
+                    </div>
+                    <span className="text-xs text-gray-500">Claimed</span>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-center gap-1 text-gray-700 mb-1">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="text-lg font-bold">{pendingCount}</span>
+                    </div>
+                    <span className="text-xs text-gray-500">Pending</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="p-3 bg-green-50 rounded-lg">
                     <div className="flex items-center gap-2 text-green-700 mb-1">
                       <Wallet className="w-4 h-4" />
@@ -332,43 +413,54 @@ export const PaymentPage = () => {
                       </span>
                     </div>
                     <p className={`text-sm ${summary.balance > 0 ? 'text-green-800' : 'text-red-800'}`}>
-                      {formatRupiahInMessage(summary.balance_message)}
+                      {summary.balance > 0
+                        ? `${formatRupiah(summary.balance)} more collected than needed`
+                        : `${formatRupiah(Math.abs(summary.balance))} still needs to be collected`}
+                    </p>
+                  </div>
+                )}
+                {isCreator && event.status === "payment_open" && confirmedCount > 0 && confirmedCount === summary?.num_participants && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <Button
+                      onClick={() => updateEventStatus.mutateAsync({ eventId: event.id, status: "completed", shareToken })}
+                      loading={updateEventStatus.isPending}
+                      className="w-full"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Complete Event
+                    </Button>
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      All payments confirmed. Mark event as completed.
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Per-Person Status */}
-            {perPersonStatus.length > 0 && (
+            {isCreator && unsettledPeople.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                  Participant Status
+                  Needs Follow-up
                 </h2>
                 <div className="space-y-2">
-                  {perPersonStatus.map((person) => {
+                  {unsettledPeople.map((person) => {
                     const style = getActionStyle(person.action);
                     const buttonText = getActionButtonText(person.action);
-                    // Adjust button only shows when:
-                    // - Event status is payment_open
-                    // - Creator is viewing
-                    // - Participant has a confirmed payment record (adjust is for confirmed records only)
-                    // - Action is pay_more or receive_refund (not pay_full - they need to claim first)
-                    const showAdjustButton = isCreator && 
-                      event.status === "payment_open" && 
-                      person.status === "confirmed" && 
+                    const showAdjustButton =
+                      event.status === "payment_open" &&
+                      person.status === "confirmed" &&
                       (person.action === "pay_more" || person.action === "receive_refund");
-                    
+
                     return (
                       <div
-                        key={person.user_id}
-                        className={`flex items-center justify-between p-3 rounded-lg ${style.bg}`}
+                        key={person.participant_id}
+                        className={`flex items-center justify-between gap-3 p-3 rounded-lg ${style.bg}`}
                       >
                         <div>
-                          <p className="font-medium text-gray-900">{person.user_name}</p>
+                          <p className="font-medium text-gray-900">{person.display_name}</p>
                           {person.paid_amount > 0 && (
                             <p className="text-xs text-gray-500">
-                              Paid {formatRupiah(person.paid_amount)}
+                              Already paid {formatRupiah(person.paid_amount)}
                             </p>
                           )}
                         </div>
@@ -394,54 +486,10 @@ export const PaymentPage = () => {
               </div>
             )}
 
-            {/* Payment Status Summary */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <div className="flex items-center justify-center gap-1 text-green-700 mb-1">
-                    <CheckCircle className="w-4 h-4" />
-                    <span className="text-lg font-bold">{confirmedCount}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">Confirmed</span>
-                </div>
-                <div className="p-3 bg-yellow-50 rounded-lg">
-                  <div className="flex items-center justify-center gap-1 text-yellow-700 mb-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-lg font-bold">{claimedCount}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">Claimed</span>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-center gap-1 text-gray-700 mb-1">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="text-lg font-bold">{pendingCount}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">Pending</span>
-                </div>
-              </div>
-              
-              {/* Complete Event Button - Creator only when all paid */}
-              {isCreator && event.status === "payment_open" && confirmedCount > 0 && confirmedCount === summary?.num_participants && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <Button
-                    onClick={() => updateEventStatus.mutateAsync({ eventId: event.id, status: "completed", shareToken })}
-                    loading={updateEventStatus.isPending}
-                    className="w-full"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Complete Event
-                  </Button>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    All payments confirmed. Mark event as completed.
-                  </p>
-                </div>
-              )}
-            </div>
-
             {/* Payment Details */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                Payment Details
+                Payment Info
               </h2>
               <div className="space-y-2">
                 <div className="flex justify-between">
@@ -450,17 +498,29 @@ export const PaymentPage = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Per Person</span>
-                  <span className="font-semibold">{formatRupiah(payment.split_amount)}</span>
+                  <span className="font-semibold">{formatRupiah(payment.base_split)}</span>
                 </div>
                 <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Payment Info</span>
-                    <button
-                      onClick={handleCopyPaymentInfo}
-                      className="p-1 text-gray-400 hover:text-gray-600"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {isCreator && event.status === "payment_open" && (
+                        <button
+                          onClick={openEditPaymentInfoModal}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="Edit payment info"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={handleCopyPaymentInfo}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                        title="Copy payment info"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm font-mono bg-gray-50 p-2 rounded mt-1">
                     {payment.payment_info}
@@ -470,11 +530,23 @@ export const PaymentPage = () => {
             </div>
 
             {/* User's Payment Action - only when payment_open */}
-            {!isCreator && event.status === "payment_open" && userRecord && userRecord.status === "pending" && (
+            {canUserSubmitPayment && (
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                  Submit Your Payment
+                  {userSettlement?.action === "pay_more" ? "Submit Additional Payment" : "Submit Your Payment"}
                 </h2>
+                <div className="mb-3 p-3 rounded-lg bg-amber-50 text-amber-800">
+                  <p className="text-sm font-medium">
+                    {userSettlement?.action === "pay_more"
+                      ? `You still need to pay ${formatRupiah(userSettlement.action_amount)} more.`
+                      : `You need to pay ${formatRupiah(userSettlement?.action_amount || userRecord.amount)}.`}
+                  </p>
+                  {userRecord?.paid_amount > 0 && userSettlement?.action === "pay_more" && (
+                    <p className="text-xs mt-1 text-amber-700">
+                      You already paid {formatRupiah(userRecord.paid_amount)} before the amount changed.
+                    </p>
+                  )}
+                </div>
                 <ProofUploader
                   onUpload={handleUploadProof}
                   isUploading={isUploading || claimPayment.isPending}
@@ -486,6 +558,18 @@ export const PaymentPage = () => {
               </div>
             )}
 
+            {!isCreator && userSettlement?.action === "receive_refund" && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-green-800">
+                  <PlusCircle className="w-5 h-5" />
+                  <span className="font-medium">Refund Needed</span>
+                </div>
+                <p className="text-sm text-green-700 mt-1">
+                  You have overpaid by {formatRupiah(userSettlement.action_amount)} and the organizer can settle the refund manually.
+                </p>
+              </div>
+            )}
+
             {!isCreator && userRecord && userRecord.status === "claimed" && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
                 <div className="flex items-center gap-2 text-yellow-800">
@@ -493,12 +577,26 @@ export const PaymentPage = () => {
                   <span className="font-medium">Payment Pending Confirmation</span>
                 </div>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Your payment proof has been submitted and is awaiting confirmation from the organizer.
+                  {userSettlement?.action === "pay_more"
+                    ? "Your additional payment has been submitted and is awaiting confirmation from the organizer."
+                    : "Your payment proof has been submitted and is awaiting confirmation from the organizer."}
                 </p>
               </div>
             )}
 
-            {!isCreator && userRecord && userRecord.status === "confirmed" && (
+            {!isCreator && userSettlement?.action === "pay_more" && userRecord?.status !== "claimed" && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <MinusCircle className="w-5 h-5" />
+                  <span className="font-medium">Additional Payment Needed</span>
+                </div>
+                <p className="text-sm text-amber-700 mt-1">
+                  Your current amount increased. You still need to pay {formatRupiah(userSettlement.action_amount)} more.
+                </p>
+              </div>
+            )}
+
+            {!isCreator && userSettlement?.action === "no_action" && userRecord?.status === "confirmed" && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                 <div className="flex items-center gap-2 text-green-800">
                   <CheckCircle className="w-5 h-5" />
@@ -520,9 +618,23 @@ export const PaymentPage = () => {
                   <PaymentRecordRow
                     key={record.id}
                     record={record}
-                    splitAmount={payment.split_amount}
+                    settlement={perPersonStatusMap.get(record.participant_id)}
                     isCreator={isCreator}
                     onConfirm={handleConfirmPayment}
+                    onEdit={(currentRecord) =>
+                      openAdjustModal({
+                        participant_id: currentRecord.participant_id,
+                        display_name: currentRecord.participant?.is_guest
+                          ? currentRecord.participant?.guest_name
+                          : currentRecord.participant?.user?.name,
+                        amount: currentRecord.amount,
+                        paid_amount: currentRecord.paid_amount,
+                        base_split: payment.base_split,
+                        note: currentRecord.note,
+                        action: perPersonStatusMap.get(currentRecord.participant_id)?.action,
+                        action_amount: perPersonStatusMap.get(currentRecord.participant_id)?.action_amount,
+                      })
+                    }
                     eventId={event.id}
                     eventStatus={event.status}
                   />
@@ -584,7 +696,7 @@ export const PaymentPage = () => {
       <Modal
         isOpen={adjustModalOpen}
         onClose={() => setAdjustModalOpen(false)}
-        title={adjustPerson ? `Adjust Payment - ${adjustPerson.user_name}` : "Adjust Payment"}
+        title={adjustPerson ? `Adjust Payment - ${adjustPerson.display_name}` : "Adjust Payment"}
       >
         {adjustPerson && (
           <div className="space-y-4">
@@ -593,20 +705,17 @@ export const PaymentPage = () => {
                 Current paid: <strong>{formatRupiah(adjustPerson.paid_amount)}</strong>
               </p>
               <p className="text-sm text-gray-600">
-                Current split: <strong>{formatRupiah(adjustPerson.current_split)}</strong>
+                Base split: <strong>{formatRupiah(adjustPerson.base_split)}</strong>
               </p>
               <p className="text-sm text-gray-600 mt-1">
-                {adjustPerson.action === "receive_refund" 
-                  ? `Recording refund of ${formatRupiah(adjustPerson.action_amount)}`
-                  : `Recording additional payment of ${formatRupiah(adjustPerson.action_amount)}`
-                }
+                Set the current amount and optional note for this participant.
               </p>
             </div>
 
             <CurrencyInput
-              label={adjustPerson.action === "receive_refund" ? "Refund Amount" : "Additional Payment Amount"}
+              label="Current Amount"
               value={adjustAmount}
-              onChange={setAdjustAmount}
+              onChange={(e) => setAdjustAmount(e.target.value)}
               placeholder="Amount"
             />
 
@@ -617,10 +726,7 @@ export const PaymentPage = () => {
               <textarea
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 rows={2}
-                placeholder={adjustPerson.action === "receive_refund" 
-                  ? "Refund reason..."
-                  : "Additional payment reason..."
-                }
+                placeholder="Reason or context..."
                 value={adjustNote}
                 onChange={(e) => setAdjustNote(e.target.value)}
               />
@@ -666,11 +772,89 @@ export const PaymentPage = () => {
                 disabled={!adjustAmount || parseInt(adjustAmount) <= 0}
                 className="flex-1"
               >
-                {adjustPerson.action === "receive_refund" ? "Record Refund" : "Record Payment"}
+                Save Amount
               </Button>
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={isEditPaymentInfoOpen}
+        onClose={() => setIsEditPaymentInfoOpen(false)}
+        title="Edit Payment Info"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Payment Information
+            </label>
+            <textarea
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              rows={4}
+              placeholder="BCA 1234567890 a/n John Doe"
+              value={editedPaymentInfo}
+              onChange={(e) => setEditedPaymentInfo(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsEditPaymentInfoOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdatePaymentInfo}
+              loading={updatePayment.isPending}
+              disabled={!editedPaymentInfo.trim()}
+              className="flex-1"
+            >
+              Save Changes
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={chargeAllOpen}
+        onClose={() => setChargeAllOpen(false)}
+        title="Add Charge to Everyone"
+      >
+        <div className="space-y-4">
+          <CurrencyInput
+            label="Amount"
+            value={chargeAllAmount}
+            onChange={(e) => setChargeAllAmount(e.target.value)}
+            placeholder="10000"
+          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Note
+            </label>
+            <textarea
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              rows={2}
+              placeholder="Additional shuttlecock fee"
+              value={chargeAllNote}
+              onChange={(e) => setChargeAllNote(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setChargeAllOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleChargeAll}
+              loading={chargeAllPayments.isPending}
+              disabled={!chargeAllAmount || !chargeAllNote.trim()}
+              className="flex-1"
+            >
+              Apply Charge
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

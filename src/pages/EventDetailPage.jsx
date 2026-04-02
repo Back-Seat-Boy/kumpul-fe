@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink, Crown, PlusCircle, MinusCircle } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink, Crown, PlusCircle, MinusCircle, AlertCircle, UserRound } from "lucide-react";
 import { useEvent, useUpdateEventStatus, useSetChosenOption } from "../hooks/useEvents";
 import { useOptionsWithVoters, useVotedOptionIds } from "../hooks/useOptions";
-import { useParticipants, useJoinEvent, useLeaveEvent, useRemoveParticipant } from "../hooks/useParticipants";
+import { useParticipants, useJoinEvent, useLeaveEvent, useAddGuestParticipant, useRemoveParticipant } from "../hooks/useParticipants";
 import { useCastVote, useRemoveVote } from "../hooks/useVotes";
 import { useAuthStore } from "../store/authStore";
 import { EventStatusBadge } from "../components/event/EventStatusBadge";
@@ -19,6 +19,34 @@ import { formatDate, formatDateTime, formatRupiah } from "../utils/format";
 import { getVenueWhatsAppLink } from "../api/whatsapp";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 
+const getEmbeddableMapUrl = (mapsUrl) => {
+  if (!mapsUrl) return null;
+
+  try {
+    const url = new URL(mapsUrl);
+    const hostname = url.hostname.toLowerCase();
+
+    // Google short links redirect in-browser, but they do not produce useful embeds.
+    if (hostname.includes("maps.app.goo.gl")) {
+      return null;
+    }
+
+    if (hostname.includes("google.com") || hostname.includes("google.co.id")) {
+      if (url.pathname.startsWith("/maps/embed")) {
+        return mapsUrl;
+      }
+
+      if (url.pathname.startsWith("/maps")) {
+        return `https://www.google.com/maps?q=${encodeURIComponent(mapsUrl)}&z=15&output=embed`;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 export const EventDetailPage = () => {
   const { shareToken } = useParams();
   const navigate = useNavigate();
@@ -31,6 +59,9 @@ export const EventDetailPage = () => {
   const [isContactingVenue, setIsContactingVenue] = useState(false);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [impactData, setImpactData] = useState(null);
+  const [isAddGuestOpen, setIsAddGuestOpen] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [participantToRemove, setParticipantToRemove] = useState(null);
 
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
   const { data: options } = useOptionsWithVoters(event?.id, shareToken);
@@ -40,6 +71,7 @@ export const EventDetailPage = () => {
 
   const joinEvent = useJoinEvent();
   const leaveEvent = useLeaveEvent();
+  const addGuestParticipant = useAddGuestParticipant();
   const removeParticipant = useRemoveParticipant();
   const castVote = useCastVote();
   const removeVote = useRemoveVote();
@@ -48,6 +80,10 @@ export const EventDetailPage = () => {
 
   const isCreator = event && user && event.created_by === user.id;
   const hasJoined = participants?.some((p) => p.user_id === user?.id);
+  const canAddGuest =
+    !!sessionId &&
+    (event?.status === "open" || event?.status === "payment_open") &&
+    (isCreator || hasJoined);
 
   if (isLoadingEvent) {
     return (
@@ -104,15 +140,34 @@ export const EventDetailPage = () => {
     }
   };
 
-  const handleRemoveParticipant = async (userId) => {
-    if (!confirm("Are you sure you want to remove this participant?")) return;
+  const handleAddGuest = async () => {
+    if (!guestName.trim()) return;
+    try {
+      await addGuestParticipant.mutateAsync({
+        eventId: event.id,
+        shareToken,
+        guestName: guestName.trim(),
+      });
+      setGuestName("");
+      setIsAddGuestOpen(false);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
+  const handleRemoveParticipant = async () => {
+    if (!participantToRemove) return;
+
     try {
       await removeParticipant.mutateAsync({
         eventId: event.id,
-        userId,
+        participantId: participantToRemove.id,
         shareToken,
-        onImpact: (data) => setImpactData(data),
+        onImpact: (data) => {
+          setImpactData(data);
+        },
       });
+      setParticipantToRemove(null);
     } catch (error) {
       showError(getErrorMessage(error));
     }
@@ -147,6 +202,11 @@ export const EventDetailPage = () => {
 
   const chosenOption = options?.find((o) => o.id === event.chosen_option_id);
   const creatorParticipant = participants?.find((p) => p.user_id === event.created_by);
+  const chosenOptionMapsUrl = chosenOption?.venue?.maps_url;
+  const chosenOptionEmbedUrl = getEmbeddableMapUrl(chosenOptionMapsUrl);
+  const removeParticipantName = participantToRemove?.is_guest
+    ? participantToRemove?.guest_name
+    : participantToRemove?.user?.name;
 
   // Helper to get action text
   const getActionText = (action, amount) => {
@@ -261,6 +321,30 @@ export const EventDetailPage = () => {
                 {chosenOption.start_time} - {chosenOption.end_time}
               </span>
             </div>
+            {chosenOptionMapsUrl && (
+              <div className="mt-3 space-y-2">
+                <a
+                  href={chosenOptionMapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-800"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Map
+                </a>
+                {chosenOptionEmbedUrl && (
+                  <div className="overflow-hidden rounded-lg border border-green-200">
+                    <iframe
+                      title={`Map for ${chosenOption.venue?.name || "venue"}`}
+                      src={chosenOptionEmbedUrl}
+                      className="h-56 w-full border-0"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -338,10 +422,17 @@ export const EventDetailPage = () => {
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
                 Participants
               </h2>
-              <span className="text-sm text-gray-600">
-                {participants?.length || 0}
-                {event.player_cap ? ` / ${event.player_cap}` : ""}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">
+                  {participants?.length || 0}
+                  {event.player_cap ? ` / ${event.player_cap}` : ""}
+                </span>
+                {canAddGuest && (
+                  <Button variant="secondary" onClick={() => setIsAddGuestOpen(true)} className="px-3 py-1.5 text-xs">
+                    Add Guest
+                  </Button>
+                )}
+              </div>
             </div>
             
             {creatorParticipant && (
@@ -365,7 +456,7 @@ export const EventDetailPage = () => {
               participants={participants?.filter((p) => p.user_id !== event.created_by)} 
               isCreatorId={event.created_by}
               isCreator={isCreator}
-              onRemove={handleRemoveParticipant}
+              onRemove={setParticipantToRemove}
               eventId={event.id}
               eventStatus={event.status}
               maxDisplay={showAllParticipants ? 100 : 5}
@@ -471,13 +562,13 @@ export const EventDetailPage = () => {
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {impactData.impacts.map((impact) => (
                     <div
-                      key={impact.user_id}
+                      key={impact.participant_id}
                       className={`p-3 rounded-lg ${getActionStyle(impact.action)}`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {getActionIcon(impact.action)}
-                          <span className="font-medium">{impact.user_name}</span>
+                          <span className="font-medium">{impact.display_name}</span>
                         </div>
                         <span className="text-sm font-medium">
                           {getActionText(impact.action, impact.action_amount)}
@@ -510,6 +601,106 @@ export const EventDetailPage = () => {
                 className="flex-1"
               >
                 Go to Payment
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={isAddGuestOpen}
+        onClose={() => setIsAddGuestOpen(false)}
+        title="Add Guest"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Guest Name
+            </label>
+            <input
+              type="text"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              placeholder="Guest Player"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setIsAddGuestOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddGuest}
+              loading={addGuestParticipant.isPending}
+              disabled={!guestName.trim()}
+              className="flex-1"
+            >
+              Add Guest
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!participantToRemove}
+        onClose={() => setParticipantToRemove(null)}
+        title="Remove Participant"
+      >
+        {participantToRemove && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              {participantToRemove.is_guest ? (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-600">
+                  <UserRound className="w-5 h-5" />
+                </div>
+              ) : (
+                <Avatar
+                  src={participantToRemove.user?.avatar_url}
+                  name={participantToRemove.user?.name}
+                  size="lg"
+                />
+              )}
+              <div>
+                <p className={`font-medium text-gray-900 ${participantToRemove.is_guest ? "italic" : ""}`}>
+                  {removeParticipantName}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {participantToRemove.is_guest ? "Guest participant" : "Registered participant"}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="text-sm text-amber-900">
+                  <p className="font-medium">This will remove them from the event.</p>
+                  <p className="mt-1 text-amber-800">
+                    If payment is already open, their payment record will be deleted and everyone else's split may change.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600">
+              Are you sure you want to remove <span className="font-medium text-gray-900">{removeParticipantName}</span>?
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setParticipantToRemove(null)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleRemoveParticipant}
+                loading={removeParticipant.isPending}
+                className="flex-1"
+              >
+                Remove Participant
               </Button>
             </div>
           </div>

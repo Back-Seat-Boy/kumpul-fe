@@ -15,13 +15,19 @@ export const joinEvent = async (eventId) => {
   return res.data;
 };
 
+export const addGuestParticipant = async (eventId, guestName) => {
+  const res = await api.post(`/api/events/${eventId}/participants/guest/`, {
+    guest_name: guestName,
+  });
+  return res.data;
+};
+
 export const leaveEvent = async (eventId) => {
   const res = await api.delete(`/api/events/${eventId}/participants/`);
   return res.data;
 };
 
-// NEW: Creator can remove a participant
-export const removeParticipant = async (eventId, userId) => {
-  const res = await api.delete(`/api/events/${eventId}/participants/${userId}/`);
+export const removeParticipant = async (eventId, participantId) => {
+  const res = await api.delete(`/api/events/${eventId}/participants/${participantId}/`);
   return res.data.data;
 };
