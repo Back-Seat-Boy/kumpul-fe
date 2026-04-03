@@ -1,7 +1,29 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle, Clock, AlertCircle, Copy, Wallet, TrendingUp, MinusCircle, PlusCircle, Check, Pencil, Settings2 } from "lucide-react";
-import { usePayment, useCreatePayment, useChargeAllPayments, useClaimPayment, useConfirmPayment, useAdjustPayment, useUpdatePayment, useUpdatePaymentConfig } from "../hooks/usePayments";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  Copy,
+  Wallet,
+  TrendingUp,
+  MinusCircle,
+  PlusCircle,
+  Check,
+  Pencil,
+  Settings2,
+} from "lucide-react";
+import {
+  usePayment,
+  useCreatePayment,
+  useChargeAllPayments,
+  useClaimPayment,
+  useConfirmPayment,
+  useAdjustPayment,
+  useUpdatePayment,
+  useUpdatePaymentConfig,
+} from "../hooks/usePayments";
 import { useEvent, useUpdateEventStatus } from "../hooks/useEvents";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "../components/ui/Button";
@@ -18,13 +40,29 @@ import { useToastStore, getErrorMessage } from "../utils/toast";
 const getActionStyle = (action) => {
   switch (action) {
     case "pay_full":
-      return { icon: <Clock className="w-4 h-4" />, color: "text-yellow-600", bg: "bg-yellow-50" };
+      return {
+        icon: <Clock className="w-4 h-4" />,
+        color: "text-yellow-600",
+        bg: "bg-yellow-50",
+      };
     case "pay_more":
-      return { icon: <MinusCircle className="w-4 h-4" />, color: "text-orange-600", bg: "bg-orange-50" };
+      return {
+        icon: <MinusCircle className="w-4 h-4" />,
+        color: "text-orange-600",
+        bg: "bg-orange-50",
+      };
     case "receive_refund":
-      return { icon: <PlusCircle className="w-4 h-4" />, color: "text-green-600", bg: "bg-green-50" };
+      return {
+        icon: <PlusCircle className="w-4 h-4" />,
+        color: "text-green-600",
+        bg: "bg-green-50",
+      };
     case "no_action":
-      return { icon: <Check className="w-4 h-4" />, color: "text-green-600", bg: "bg-green-50" };
+      return {
+        icon: <Check className="w-4 h-4" />,
+        color: "text-green-600",
+        bg: "bg-green-50",
+      };
     default:
       return { icon: null, color: "text-gray-600", bg: "bg-gray-50" };
   }
@@ -77,7 +115,7 @@ export const PaymentPage = () => {
   const [editedTotalCost, setEditedTotalCost] = useState("");
   const [editedPerPersonAmount, setEditedPerPersonAmount] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  
+
   // Adjustment modal state
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [adjustPerson, setAdjustPerson] = useState(null);
@@ -109,11 +147,19 @@ export const PaymentPage = () => {
   const perPersonStatusMap = new Map(
     perPersonStatus.map((person) => [person.participant_id, person]),
   );
-  const unsettledPeople = perPersonStatus.filter((person) => person.action !== "no_action");
+  const unsettledPeople = perPersonStatus.filter(
+    (person) => person.action !== "no_action",
+  );
 
-  const confirmedCount = summary?.num_confirmed ?? records.filter((r) => r.status === "confirmed").length;
-  const claimedCount = summary?.num_claimed ?? records.filter((r) => r.status === "claimed").length;
-  const pendingCount = summary?.num_pending ?? records.filter((r) => r.status === "pending").length;
+  const confirmedCount =
+    summary?.num_confirmed ??
+    records.filter((r) => r.status === "confirmed").length;
+  const claimedCount =
+    summary?.num_claimed ??
+    records.filter((r) => r.status === "claimed").length;
+  const pendingCount =
+    summary?.num_pending ??
+    records.filter((r) => r.status === "pending").length;
 
   const userRecord = records.find((r) => r.participant?.user_id === user?.id);
   const userSettlement = userRecord
@@ -123,7 +169,8 @@ export const PaymentPage = () => {
     !isCreator &&
     event?.status === "payment_open" &&
     userRecord &&
-    (userSettlement?.action === "pay_full" || userSettlement?.action === "pay_more");
+    (userSettlement?.action === "pay_full" ||
+      userSettlement?.action === "pay_more");
 
   const handleCreatePayment = async () => {
     try {
@@ -137,13 +184,13 @@ export const PaymentPage = () => {
           payment_info: paymentInfo,
         },
       });
-      
+
       await updateEventStatus.mutateAsync({
         eventId: event.id,
         status: "payment_open",
         shareToken,
       });
-      
+
       setIsCreateModalOpen(false);
       setPaymentType("total");
       setTotalCost("");
@@ -173,10 +220,13 @@ export const PaymentPage = () => {
   const handleUploadProof = async (base64Image) => {
     // If no image provided, submit claim without proof
     if (!base64Image) {
-      await claimPayment.mutateAsync({ eventId: event.id, proofImageUrl: null });
+      await claimPayment.mutateAsync({
+        eventId: event.id,
+        proofImageUrl: null,
+      });
       return;
     }
-    
+
     setIsUploading(true);
     try {
       const { url } = await uploadImage(base64Image);
@@ -210,8 +260,16 @@ export const PaymentPage = () => {
 
   const openEditPaymentConfigModal = () => {
     setEditedPaymentType(payment?.type || "total");
-    setEditedTotalCost(payment?.type === "total" ? payment?.total_cost || "" : payment?.total_cost || "");
-    setEditedPerPersonAmount(payment?.type === "per_person" ? payment?.base_split || "" : payment?.base_split || "");
+    setEditedTotalCost(
+      payment?.type === "total"
+        ? payment?.total_cost || ""
+        : payment?.total_cost || "",
+    );
+    setEditedPerPersonAmount(
+      payment?.type === "per_person"
+        ? payment?.base_split || ""
+        : payment?.base_split || "",
+    );
     setIsEditPaymentConfigOpen(true);
   };
 
@@ -234,7 +292,9 @@ export const PaymentPage = () => {
 
   const openAdjustModal = (person) => {
     setAdjustPerson(person);
-    setAdjustAmount(person.amount?.toString() || person.action_amount?.toString() || "");
+    setAdjustAmount(
+      person.amount?.toString() || person.action_amount?.toString() || "",
+    );
     setAdjustNote(person.note || "");
     setAdjustProofUrl("");
     setAdjustModalOpen(true);
@@ -245,7 +305,7 @@ export const PaymentPage = () => {
     if (!base64Image) {
       return;
     }
-    
+
     setIsAdjustUploading(true);
     try {
       const { url } = await uploadImage(base64Image);
@@ -260,7 +320,7 @@ export const PaymentPage = () => {
 
   const handleSubmitAdjustment = async () => {
     if (!adjustPerson || !adjustAmount) return;
-    
+
     try {
       const amount = parseInt(adjustAmount, 10);
       await adjustPayment.mutateAsync({
@@ -272,7 +332,7 @@ export const PaymentPage = () => {
           proof_image_url: adjustProofUrl || undefined,
         },
       });
-      
+
       setAdjustModalOpen(false);
       setAdjustPerson(null);
       setAdjustAmount("");
@@ -333,7 +393,8 @@ export const PaymentPage = () => {
               Login Required
             </h2>
             <p className="text-sm text-gray-500 mb-4">
-              This payment page is public to open, but you need to log in to view payment details or submit payment.
+              This payment page is public to open, but you need to log in to
+              view payment details or submit payment.
             </p>
             <Link to="/login" className="inline-flex">
               <Button>Continue to Login</Button>
@@ -357,7 +418,8 @@ export const PaymentPage = () => {
                 </>
               ) : (
                 <p className="text-sm text-gray-500">
-                  Payment can only be opened when event status is "Open for RSVP".
+                  Payment can only be opened when event status is "Open for
+                  RSVP".
                 </p>
               )}
             </div>
@@ -383,11 +445,16 @@ export const PaymentPage = () => {
                       Payment Summary
                     </h2>
                     <p className="text-xs text-gray-500 mt-1">
-                      Base split reference: {formatRupiah(payment.base_split)}/orang
+                      Base split reference: {formatRupiah(payment.base_split)}
+                      /orang
                     </p>
                   </div>
                   {isCreator && event.status === "payment_open" && (
-                    <Button variant="secondary" onClick={() => setChargeAllOpen(true)} className="shrink-0">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setChargeAllOpen(true)}
+                      className="shrink-0"
+                    >
                       Add Charge to Everyone
                     </Button>
                   )}
@@ -397,7 +464,9 @@ export const PaymentPage = () => {
                   <div className="p-3 bg-green-50 rounded-lg">
                     <div className="flex items-center justify-center gap-1 text-green-700 mb-1">
                       <CheckCircle className="w-4 h-4" />
-                      <span className="text-lg font-bold">{confirmedCount}</span>
+                      <span className="text-lg font-bold">
+                        {confirmedCount}
+                      </span>
                     </div>
                     <span className="text-xs text-gray-500">Confirmed</span>
                   </div>
@@ -439,39 +508,54 @@ export const PaymentPage = () => {
                 </div>
 
                 {summary.balance !== 0 && (
-                  <div className={`p-3 rounded-lg ${summary.balance > 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+                  <div
+                    className={`p-3 rounded-lg ${summary.balance > 0 ? "bg-green-100" : "bg-red-100"}`}
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       {summary.balance > 0 ? (
                         <PlusCircle className="w-4 h-4 text-green-600" />
                       ) : (
                         <MinusCircle className="w-4 h-4 text-red-600" />
                       )}
-                      <span className={`text-sm font-medium ${summary.balance > 0 ? 'text-green-700' : 'text-red-700'}`}>
-                        {summary.balance > 0 ? 'Surplus' : 'Shortage'}
+                      <span
+                        className={`text-sm font-medium ${summary.balance > 0 ? "text-green-700" : "text-red-700"}`}
+                      >
+                        {summary.balance > 0 ? "Surplus" : "Shortage"}
                       </span>
                     </div>
-                    <p className={`text-sm ${summary.balance > 0 ? 'text-green-800' : 'text-red-800'}`}>
+                    <p
+                      className={`text-sm ${summary.balance > 0 ? "text-green-800" : "text-red-800"}`}
+                    >
                       {summary.balance > 0
                         ? `${formatRupiah(summary.balance)} more collected than needed`
                         : `${formatRupiah(Math.abs(summary.balance))} still needs to be collected`}
                     </p>
                   </div>
                 )}
-                {isCreator && event.status === "payment_open" && confirmedCount > 0 && confirmedCount === summary?.num_participants && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <Button
-                      onClick={() => updateEventStatus.mutateAsync({ eventId: event.id, status: "completed", shareToken })}
-                      loading={updateEventStatus.isPending}
-                      className="w-full"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Complete Event
-                    </Button>
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      All payments confirmed. Mark event as completed.
-                    </p>
-                  </div>
-                )}
+                {isCreator &&
+                  event.status === "payment_open" &&
+                  confirmedCount > 0 &&
+                  confirmedCount === summary?.num_participants && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <Button
+                        onClick={() =>
+                          updateEventStatus.mutateAsync({
+                            eventId: event.id,
+                            status: "completed",
+                            shareToken,
+                          })
+                        }
+                        loading={updateEventStatus.isPending}
+                        className="w-full"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Complete Event
+                      </Button>
+                      <p className="text-xs text-gray-500 text-center mt-2">
+                        All payments confirmed. Mark event as completed.
+                      </p>
+                    </div>
+                  )}
               </div>
             )}
 
@@ -487,7 +571,8 @@ export const PaymentPage = () => {
                     const showAdjustButton =
                       event.status === "payment_open" &&
                       person.status === "confirmed" &&
-                      (person.action === "pay_more" || person.action === "receive_refund");
+                      (person.action === "pay_more" ||
+                        person.action === "receive_refund");
 
                     return (
                       <div
@@ -495,7 +580,9 @@ export const PaymentPage = () => {
                         className={`flex items-center justify-between gap-3 p-3 rounded-lg ${style.bg}`}
                       >
                         <div>
-                          <p className="font-medium text-gray-900">{person.display_name}</p>
+                          <p className="font-medium text-gray-900">
+                            {person.display_name}
+                          </p>
                           {person.paid_amount > 0 && (
                             <p className="text-xs text-gray-500">
                               Already paid {formatRupiah(person.paid_amount)}
@@ -503,9 +590,16 @@ export const PaymentPage = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className={`flex items-center gap-1.5 text-sm font-medium ${style.color}`}>
+                          <div
+                            className={`flex items-center gap-1.5 text-sm font-medium ${style.color}`}
+                          >
                             {style.icon}
-                            <span>{getActionText(person.action, person.action_amount)}</span>
+                            <span>
+                              {getActionText(
+                                person.action,
+                                person.action_amount,
+                              )}
+                            </span>
                           </div>
                           {showAdjustButton && (
                             <Button
@@ -532,29 +626,37 @@ export const PaymentPage = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Mode</span>
-                  <span className="font-semibold capitalize">{payment.type?.replace("_", " ") || "total"}</span>
+                  <span className="font-semibold capitalize">
+                    {payment.type?.replace("_", " ") || "total"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total Cost</span>
-                  <span className="font-semibold">{formatRupiah(payment.total_cost)}</span>
+                  <span className="font-semibold">
+                    {formatRupiah(payment.total_cost)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Per Person</span>
-                  <span className="font-semibold">{formatRupiah(payment.base_split)}</span>
+                  <span className="font-semibold">
+                    {formatRupiah(payment.base_split)}
+                  </span>
                 </div>
                 <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Payment Info</span>
-                  <div className="flex items-center gap-1">
-                      {isCreator && (event.status === "open" || event.status === "payment_open") && (
-                        <button
-                          onClick={openEditPaymentConfigModal}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          title="Edit payment configuration"
-                        >
-                          <Settings2 className="w-4 h-4" />
-                        </button>
-                      )}
+                    <div className="flex items-center gap-1">
+                      {isCreator &&
+                        (event.status === "open" ||
+                          event.status === "payment_open") && (
+                          <button
+                            onClick={openEditPaymentConfigModal}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            title="Edit payment configuration"
+                          >
+                            <Settings2 className="w-4 h-4" />
+                          </button>
+                        )}
                       {isCreator && event.status === "payment_open" && (
                         <button
                           onClick={openEditPaymentInfoModal}
@@ -584,7 +686,9 @@ export const PaymentPage = () => {
             {canUserSubmitPayment && (
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                  {userSettlement?.action === "pay_more" ? "Submit Additional Payment" : "Submit Your Payment"}
+                  {userSettlement?.action === "pay_more"
+                    ? "Submit Additional Payment"
+                    : "Submit Your Payment"}
                 </h2>
                 <div className="mb-3 p-3 rounded-lg bg-amber-50 text-amber-800">
                   <p className="text-sm font-medium">
@@ -592,11 +696,13 @@ export const PaymentPage = () => {
                       ? `You still need to pay ${formatRupiah(userSettlement.action_amount)} more.`
                       : `You need to pay ${formatRupiah(userSettlement?.action_amount || userRecord.amount)}.`}
                   </p>
-                  {userRecord?.paid_amount > 0 && userSettlement?.action === "pay_more" && (
-                    <p className="text-xs mt-1 text-amber-700">
-                      You already paid {formatRupiah(userRecord.paid_amount)} before the amount changed.
-                    </p>
-                  )}
+                  {userRecord?.paid_amount > 0 &&
+                    userSettlement?.action === "pay_more" && (
+                      <p className="text-xs mt-1 text-amber-700">
+                        You already paid {formatRupiah(userRecord.paid_amount)}{" "}
+                        before the amount changed.
+                      </p>
+                    )}
                 </div>
                 <ProofUploader
                   onUpload={handleUploadProof}
@@ -616,7 +722,9 @@ export const PaymentPage = () => {
                   <span className="font-medium">Refund Needed</span>
                 </div>
                 <p className="text-sm text-green-700 mt-1">
-                  You have overpaid by {formatRupiah(userSettlement.action_amount)} and the organizer can settle the refund manually.
+                  You have overpaid by{" "}
+                  {formatRupiah(userSettlement.action_amount)} and the organizer
+                  can settle the refund manually.
                 </p>
               </div>
             )}
@@ -625,7 +733,9 @@ export const PaymentPage = () => {
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
                 <div className="flex items-center gap-2 text-yellow-800">
                   <Clock className="w-5 h-5" />
-                  <span className="font-medium">Payment Pending Confirmation</span>
+                  <span className="font-medium">
+                    Payment Pending Confirmation
+                  </span>
                 </div>
                 <p className="text-sm text-yellow-700 mt-1">
                   {userSettlement?.action === "pay_more"
@@ -635,29 +745,36 @@ export const PaymentPage = () => {
               </div>
             )}
 
-            {!isCreator && userSettlement?.action === "pay_more" && userRecord?.status !== "claimed" && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-amber-800">
-                  <MinusCircle className="w-5 h-5" />
-                  <span className="font-medium">Additional Payment Needed</span>
+            {!isCreator &&
+              userSettlement?.action === "pay_more" &&
+              userRecord?.status !== "claimed" && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 text-amber-800">
+                    <MinusCircle className="w-5 h-5" />
+                    <span className="font-medium">
+                      Additional Payment Needed
+                    </span>
+                  </div>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Your current amount increased. You still need to pay{" "}
+                    {formatRupiah(userSettlement.action_amount)} more.
+                  </p>
                 </div>
-                <p className="text-sm text-amber-700 mt-1">
-                  Your current amount increased. You still need to pay {formatRupiah(userSettlement.action_amount)} more.
-                </p>
-              </div>
-            )}
+              )}
 
-            {!isCreator && userSettlement?.action === "no_action" && userRecord?.status === "confirmed" && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-green-800">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="font-medium">Payment Confirmed</span>
+            {!isCreator &&
+              userSettlement?.action === "no_action" &&
+              userRecord?.status === "confirmed" && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 text-green-800">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-medium">Payment Confirmed</span>
+                  </div>
+                  <p className="text-sm text-green-700 mt-1">
+                    Your payment has been confirmed. Thank you!
+                  </p>
                 </div>
-                <p className="text-sm text-green-700 mt-1">
-                  Your payment has been confirmed. Thank you!
-                </p>
-              </div>
-            )}
+              )}
 
             {/* Payment Records */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -682,11 +799,16 @@ export const PaymentPage = () => {
                         paid_amount: currentRecord.paid_amount,
                         base_split: payment.base_split,
                         note: currentRecord.note,
-                        action: perPersonStatusMap.get(currentRecord.participant_id)?.action,
-                        action_amount: perPersonStatusMap.get(currentRecord.participant_id)?.action_amount,
+                        action: perPersonStatusMap.get(
+                          currentRecord.participant_id,
+                        )?.action,
+                        action_amount: perPersonStatusMap.get(
+                          currentRecord.participant_id,
+                        )?.action_amount,
                       })
                     }
                     eventId={event.id}
+                    eventName={event.title}
                     shareToken={shareToken}
                     eventStatus={event.status}
                   />
@@ -790,16 +912,22 @@ export const PaymentPage = () => {
       <Modal
         isOpen={adjustModalOpen}
         onClose={() => setAdjustModalOpen(false)}
-        title={adjustPerson ? `Adjust Payment - ${adjustPerson.display_name}` : "Adjust Payment"}
+        title={
+          adjustPerson
+            ? `Adjust Payment - ${adjustPerson.display_name}`
+            : "Adjust Payment"
+        }
       >
         {adjustPerson && (
           <div className="space-y-4">
             <div className="bg-gray-50 p-3 rounded-lg">
               <p className="text-sm text-gray-600">
-                Current paid: <strong>{formatRupiah(adjustPerson.paid_amount)}</strong>
+                Current paid:{" "}
+                <strong>{formatRupiah(adjustPerson.paid_amount)}</strong>
               </p>
               <p className="text-sm text-gray-600">
-                Base split: <strong>{formatRupiah(adjustPerson.base_split)}</strong>
+                Base split:{" "}
+                <strong>{formatRupiah(adjustPerson.base_split)}</strong>
               </p>
               <p className="text-sm text-gray-600 mt-1">
                 Set the current amount and optional note for this participant.
@@ -966,7 +1094,9 @@ export const PaymentPage = () => {
           )}
 
           <p className="text-xs text-gray-500">
-            This updates the payment setup and recalculates current record amounts. If participant payment activity already locked the config, the backend will reject the change.
+            This updates the payment setup and recalculates current record
+            amounts. If participant payment activity already locked the config,
+            the backend will reject the change.
           </p>
 
           <div className="flex gap-3">
@@ -1018,7 +1148,11 @@ export const PaymentPage = () => {
             />
           </div>
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => setChargeAllOpen(false)} className="flex-1">
+            <Button
+              variant="secondary"
+              onClick={() => setChargeAllOpen(false)}
+              className="flex-1"
+            >
               Cancel
             </Button>
             <Button

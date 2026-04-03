@@ -16,6 +16,7 @@ export const PaymentRecordRow = ({
   onConfirm,
   onEdit,
   eventId,
+  eventName,
   shareToken,
   eventStatus,
 }) => {
@@ -50,7 +51,7 @@ export const PaymentRecordRow = ({
             ? settlement.action_amount
             : record.amount;
         const paymentUrl = `${window.location.origin}/events/${shareToken}/payment`;
-        const message = `Hei ${participantName}, jangan lupa pembayaran event ya. Saat ini masih perlu bayar ${formatRupiah(amountToMention)}.\n\nLink pembayaran:\n${paymentUrl}`;
+        const message = `Hei ${participantName}, jangan lupa pembayaran event ${eventName} ya. Saat ini masih perlu bayar ${formatRupiah(amountToMention)}.\n\nCek detil pembayaran disini ya:\n${paymentUrl}`;
         window.open(generateWhatsAppShareLink(message), "_blank");
       }
     } catch (error) {
