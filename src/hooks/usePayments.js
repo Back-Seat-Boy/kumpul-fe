@@ -4,6 +4,7 @@ import {
   getPayment,
   createPayment,
   updatePayment,
+  updatePaymentConfig,
   chargeAllPayments,
   claimPayment,
   confirmPayment,
@@ -52,6 +53,23 @@ export const useUpdatePayment = () => {
     onSuccess: (_, { eventId }) => {
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("Payment info updated");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useUpdatePaymentConfig = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, data }) => updatePaymentConfig(eventId, data),
+    onSuccess: (_, { eventId }) => {
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
+      showSuccess("Payment configuration updated");
     },
     onError: (error) => {
       showError(getErrorMessage(error));

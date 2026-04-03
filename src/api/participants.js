@@ -27,6 +27,13 @@ export const leaveEvent = async (eventId) => {
   return res.data;
 };
 
+export const getRemovalImpact = async (eventId, participantId) => {
+  const res = await api.get(
+    `/api/events/${eventId}/participants/${participantId}/removal-impact/`,
+  );
+  return res.data.data;
+};
+
 export const removeParticipant = async (eventId, participantId) => {
   const res = await api.delete(`/api/events/${eventId}/participants/${participantId}/`);
   return res.data.data;

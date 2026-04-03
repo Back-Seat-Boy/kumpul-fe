@@ -5,6 +5,7 @@ import {
   joinEvent,
   addGuestParticipant,
   leaveEvent,
+  getRemovalImpact,
   removeParticipant,
 } from "../api/participants";
 
@@ -96,6 +97,17 @@ export const useRemoveParticipant = () => {
         showSuccess(data.message || "Participant removed");
       }
     },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useRemovalImpact = () => {
+  const showError = useToastStore((state) => state.showError);
+
+  return useMutation({
+    mutationFn: ({ eventId, participantId }) => getRemovalImpact(eventId, participantId),
     onError: (error) => {
       showError(getErrorMessage(error));
     },

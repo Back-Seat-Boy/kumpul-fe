@@ -15,6 +15,11 @@ export const updatePayment = async (eventId, data) => {
   return res.data.data;
 };
 
+export const updatePaymentConfig = async (eventId, data) => {
+  const res = await api.patch(`/api/events/${eventId}/payment/config/`, data);
+  return res.data.data;
+};
+
 export const chargeAllPayments = async (eventId, data) => {
   const res = await api.post(`/api/events/${eventId}/payment/charge-all/`, data);
   return res.data;

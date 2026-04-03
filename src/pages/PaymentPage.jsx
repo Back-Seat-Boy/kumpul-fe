@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle, Clock, AlertCircle, Copy, Wallet, TrendingUp, MinusCircle, PlusCircle, Check, Pencil } from "lucide-react";
-import { usePayment, useCreatePayment, useChargeAllPayments, useClaimPayment, useConfirmPayment, useAdjustPayment, useUpdatePayment } from "../hooks/usePayments";
+import { ArrowLeft, CheckCircle, Clock, AlertCircle, Copy, Wallet, TrendingUp, MinusCircle, PlusCircle, Check, Pencil, Settings2 } from "lucide-react";
+import { usePayment, useCreatePayment, useChargeAllPayments, useClaimPayment, useConfirmPayment, useAdjustPayment, useUpdatePayment, useUpdatePaymentConfig } from "../hooks/usePayments";
 import { useEvent, useUpdateEventStatus } from "../hooks/useEvents";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "../components/ui/Button";
@@ -66,10 +66,16 @@ export const PaymentPage = () => {
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [paymentType, setPaymentType] = useState("total");
   const [totalCost, setTotalCost] = useState("");
+  const [perPersonAmount, setPerPersonAmount] = useState("");
   const [paymentInfo, setPaymentInfo] = useState("");
   const [isEditPaymentInfoOpen, setIsEditPaymentInfoOpen] = useState(false);
   const [editedPaymentInfo, setEditedPaymentInfo] = useState("");
+  const [isEditPaymentConfigOpen, setIsEditPaymentConfigOpen] = useState(false);
+  const [editedPaymentType, setEditedPaymentType] = useState("total");
+  const [editedTotalCost, setEditedTotalCost] = useState("");
+  const [editedPerPersonAmount, setEditedPerPersonAmount] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   
   // Adjustment modal state
@@ -88,6 +94,7 @@ export const PaymentPage = () => {
 
   const createPayment = useCreatePayment();
   const updatePayment = useUpdatePayment();
+  const updatePaymentConfig = useUpdatePaymentConfig();
   const chargeAllPayments = useChargeAllPayments();
   const updateEventStatus = useUpdateEventStatus();
   const claimPayment = useClaimPayment();
@@ -123,7 +130,10 @@ export const PaymentPage = () => {
       await createPayment.mutateAsync({
         eventId: event.id,
         data: {
-          total_cost: parseInt(totalCost) || 0,
+          type: paymentType,
+          ...(paymentType === "per_person"
+            ? { per_person_amount: parseInt(perPersonAmount) || 0 }
+            : { total_cost: parseInt(totalCost) || 0 }),
           payment_info: paymentInfo,
         },
       });
@@ -135,6 +145,10 @@ export const PaymentPage = () => {
       });
       
       setIsCreateModalOpen(false);
+      setPaymentType("total");
+      setTotalCost("");
+      setPerPersonAmount("");
+      setPaymentInfo("");
     } catch (error) {
       showError(getErrorMessage(error));
     }
@@ -192,6 +206,30 @@ export const PaymentPage = () => {
   const openEditPaymentInfoModal = () => {
     setEditedPaymentInfo(payment?.payment_info || "");
     setIsEditPaymentInfoOpen(true);
+  };
+
+  const openEditPaymentConfigModal = () => {
+    setEditedPaymentType(payment?.type || "total");
+    setEditedTotalCost(payment?.type === "total" ? payment?.total_cost || "" : payment?.total_cost || "");
+    setEditedPerPersonAmount(payment?.type === "per_person" ? payment?.base_split || "" : payment?.base_split || "");
+    setIsEditPaymentConfigOpen(true);
+  };
+
+  const handleUpdatePaymentConfig = async () => {
+    try {
+      await updatePaymentConfig.mutateAsync({
+        eventId: event.id,
+        data: {
+          type: editedPaymentType,
+          ...(editedPaymentType === "per_person"
+            ? { per_person_amount: parseInt(editedPerPersonAmount, 10) || 0 }
+            : { total_cost: parseInt(editedTotalCost, 10) || 0 }),
+        },
+      });
+      setIsEditPaymentConfigOpen(false);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
   };
 
   const openAdjustModal = (person) => {
@@ -493,6 +531,10 @@ export const PaymentPage = () => {
               </h2>
               <div className="space-y-2">
                 <div className="flex justify-between">
+                  <span className="text-gray-600">Mode</span>
+                  <span className="font-semibold capitalize">{payment.type?.replace("_", " ") || "total"}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-gray-600">Total Cost</span>
                   <span className="font-semibold">{formatRupiah(payment.total_cost)}</span>
                 </div>
@@ -503,7 +545,16 @@ export const PaymentPage = () => {
                 <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Payment Info</span>
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1">
+                      {isCreator && (event.status === "open" || event.status === "payment_open") && (
+                        <button
+                          onClick={openEditPaymentConfigModal}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="Edit payment configuration"
+                        >
+                          <Settings2 className="w-4 h-4" />
+                        </button>
+                      )}
                       {isCreator && event.status === "payment_open" && (
                         <button
                           onClick={openEditPaymentInfoModal}
@@ -652,13 +703,52 @@ export const PaymentPage = () => {
         title="Open Payment Collection"
       >
         <div className="space-y-4">
-          <CurrencyInput
-            label="Total Cost"
-            placeholder="3000000"
-            required
-            value={totalCost}
-            onChange={(e) => setTotalCost(e.target.value)}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Mode
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentType("total")}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                  paymentType === "total"
+                    ? "border-green-600 bg-green-50 text-green-700"
+                    : "border-gray-300 text-gray-600"
+                }`}
+              >
+                Total Event Cost
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentType("per_person")}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                  paymentType === "per_person"
+                    ? "border-green-600 bg-green-50 text-green-700"
+                    : "border-gray-300 text-gray-600"
+                }`}
+              >
+                Fixed Per Person
+              </button>
+            </div>
+          </div>
+          {paymentType === "per_person" ? (
+            <CurrencyInput
+              label="Per Person Amount"
+              placeholder="50000"
+              required
+              value={perPersonAmount}
+              onChange={(e) => setPerPersonAmount(e.target.value)}
+            />
+          ) : (
+            <CurrencyInput
+              label="Total Cost"
+              placeholder="3000000"
+              required
+              value={totalCost}
+              onChange={(e) => setTotalCost(e.target.value)}
+            />
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Payment Information
@@ -683,7 +773,10 @@ export const PaymentPage = () => {
             <Button
               onClick={handleCreatePayment}
               loading={createPayment.isPending || updateEventStatus.isPending}
-              disabled={!totalCost || !paymentInfo}
+              disabled={
+                !paymentInfo ||
+                (paymentType === "per_person" ? !perPersonAmount : !totalCost)
+              }
               className="flex-1"
             >
               Open Payment
@@ -812,6 +905,88 @@ export const PaymentPage = () => {
               className="flex-1"
             >
               Save Changes
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditPaymentConfigOpen}
+        onClose={() => setIsEditPaymentConfigOpen(false)}
+        title="Edit Payment Configuration"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Mode
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEditedPaymentType("total")}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                  editedPaymentType === "total"
+                    ? "border-green-600 bg-green-50 text-green-700"
+                    : "border-gray-300 text-gray-600"
+                }`}
+              >
+                Total Event Cost
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditedPaymentType("per_person")}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                  editedPaymentType === "per_person"
+                    ? "border-green-600 bg-green-50 text-green-700"
+                    : "border-gray-300 text-gray-600"
+                }`}
+              >
+                Fixed Per Person
+              </button>
+            </div>
+          </div>
+
+          {editedPaymentType === "per_person" ? (
+            <CurrencyInput
+              label="Per Person Amount"
+              placeholder="50000"
+              required
+              value={editedPerPersonAmount}
+              onChange={(e) => setEditedPerPersonAmount(e.target.value)}
+            />
+          ) : (
+            <CurrencyInput
+              label="Total Cost"
+              placeholder="3000000"
+              required
+              value={editedTotalCost}
+              onChange={(e) => setEditedTotalCost(e.target.value)}
+            />
+          )}
+
+          <p className="text-xs text-gray-500">
+            This updates the payment setup and recalculates current record amounts. If participant payment activity already locked the config, the backend will reject the change.
+          </p>
+
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsEditPaymentConfigOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdatePaymentConfig}
+              loading={updatePaymentConfig.isPending}
+              disabled={
+                editedPaymentType === "per_person"
+                  ? !editedPerPersonAmount
+                  : !editedTotalCost
+              }
+              className="flex-1"
+            >
+              Save Config
             </Button>
           </div>
         </div>

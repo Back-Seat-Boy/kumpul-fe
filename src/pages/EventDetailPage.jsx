@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink, Crown, PlusCircle, MinusCircle, AlertCircle, UserRound } from "lucide-react";
 import { useEvent, useUpdateEventStatus, useSetChosenOption } from "../hooks/useEvents";
 import { useOptionsWithVoters, useVotedOptionIds } from "../hooks/useOptions";
-import { useParticipants, useJoinEvent, useLeaveEvent, useAddGuestParticipant, useRemoveParticipant } from "../hooks/useParticipants";
+import { useParticipants, useJoinEvent, useLeaveEvent, useAddGuestParticipant, useRemoveParticipant, useRemovalImpact } from "../hooks/useParticipants";
 import { useCastVote, useRemoveVote } from "../hooks/useVotes";
 import { useAuthStore } from "../store/authStore";
 import { EventStatusBadge } from "../components/event/EventStatusBadge";
@@ -62,6 +62,7 @@ export const EventDetailPage = () => {
   const [isAddGuestOpen, setIsAddGuestOpen] = useState(false);
   const [guestName, setGuestName] = useState("");
   const [participantToRemove, setParticipantToRemove] = useState(null);
+  const [removalPreview, setRemovalPreview] = useState(null);
 
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
   const { data: options } = useOptionsWithVoters(event?.id, shareToken);
@@ -73,6 +74,7 @@ export const EventDetailPage = () => {
   const leaveEvent = useLeaveEvent();
   const addGuestParticipant = useAddGuestParticipant();
   const removeParticipant = useRemoveParticipant();
+  const removalImpact = useRemovalImpact();
   const castVote = useCastVote();
   const removeVote = useRemoveVote();
   const updateStatus = useUpdateEventStatus();
@@ -168,7 +170,25 @@ export const EventDetailPage = () => {
         },
       });
       setParticipantToRemove(null);
+      setRemovalPreview(null);
     } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
+  const openRemoveParticipantModal = async (participant) => {
+    setParticipantToRemove(participant);
+    setRemovalPreview(null);
+
+    try {
+      const data = await removalImpact.mutateAsync({
+        eventId: event.id,
+        participantId: participant.id,
+      });
+      setRemovalPreview(data);
+    } catch (error) {
+      setParticipantToRemove(null);
+      setRemovalPreview(null);
       showError(getErrorMessage(error));
     }
   };
@@ -456,7 +476,7 @@ export const EventDetailPage = () => {
               participants={participants?.filter((p) => p.user_id !== event.created_by)} 
               isCreatorId={event.created_by}
               isCreator={isCreator}
-              onRemove={setParticipantToRemove}
+              onRemove={openRemoveParticipantModal}
               eventId={event.id}
               eventStatus={event.status}
               maxDisplay={showAllParticipants ? 100 : 5}
@@ -643,7 +663,10 @@ export const EventDetailPage = () => {
 
       <Modal
         isOpen={!!participantToRemove}
-        onClose={() => setParticipantToRemove(null)}
+        onClose={() => {
+          setParticipantToRemove(null);
+          setRemovalPreview(null);
+        }}
         title="Remove Participant"
       >
         {participantToRemove && (
@@ -682,6 +705,56 @@ export const EventDetailPage = () => {
               </div>
             </div>
 
+            {removalImpact.isPending ? (
+              <div className="flex items-center justify-center py-6">
+                <Spinner />
+              </div>
+            ) : removalPreview?.removed_payment ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-sm font-medium text-gray-900">Removed payment summary</p>
+                  <div className="mt-2 space-y-1 text-sm text-gray-600">
+                    <p>
+                      Status: <span className="font-medium text-gray-900">{removalPreview.removed_payment.status || "-"}</span>
+                    </p>
+                    <p>
+                      Paid amount: <span className="font-medium text-gray-900">{formatRupiah(removalPreview.removed_payment.paid_amount)}</span>
+                    </p>
+                    <p>
+                      Potential refund: <span className="font-medium text-gray-900">{formatRupiah(removalPreview.removed_payment.refund_amount)}</span>
+                    </p>
+                    {removalPreview.removed_payment.pending_claimed_amount > 0 && (
+                      <p className="text-amber-700">
+                        There is still {formatRupiah(removalPreview.removed_payment.pending_claimed_amount)} in unconfirmed claims.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {removalPreview.removed_payment.claims?.length > 0 && (
+                  <div className="rounded-xl border border-gray-200 p-3">
+                    <p className="text-sm font-medium text-gray-900 mb-2">Claim history</p>
+                    <div className="space-y-3 max-h-56 overflow-y-auto">
+                      {removalPreview.removed_payment.claims.map((claim) => (
+                        <div key={claim.id} className="rounded-lg border border-gray-100 p-2">
+                          <p className="text-xs text-gray-500">
+                            {claim.status} • {formatRupiah(claim.claimed_amount)}
+                          </p>
+                          {claim.proof_image_url && (
+                            <img
+                              src={claim.proof_image_url}
+                              alt="Claim proof"
+                              className="mt-2 w-full rounded-lg"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             <p className="text-sm text-gray-600">
               Are you sure you want to remove <span className="font-medium text-gray-900">{removeParticipantName}</span>?
             </p>
@@ -689,7 +762,10 @@ export const EventDetailPage = () => {
             <div className="flex gap-3">
               <Button
                 variant="secondary"
-                onClick={() => setParticipantToRemove(null)}
+                onClick={() => {
+                  setParticipantToRemove(null);
+                  setRemovalPreview(null);
+                }}
                 className="flex-1"
               >
                 Cancel
@@ -698,6 +774,7 @@ export const EventDetailPage = () => {
                 variant="danger"
                 onClick={handleRemoveParticipant}
                 loading={removeParticipant.isPending}
+                disabled={removalImpact.isPending}
                 className="flex-1"
               >
                 Remove Participant
