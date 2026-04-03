@@ -16,6 +16,7 @@ export const PaymentRecordRow = ({
   onConfirm,
   onEdit,
   eventId,
+  shareToken,
   eventStatus,
 }) => {
   const [isImageOpen, setIsImageOpen] = useState(false);
@@ -38,14 +39,18 @@ export const PaymentRecordRow = ({
     setIsNudging(true);
     try {
       if (record.participant?.user?.whatsapp_number) {
-        const { link } = await getNudgeWhatsAppLink(eventId, record.participant.user_id);
+        const { link } = await getNudgeWhatsAppLink(
+          eventId,
+          record.participant.user_id,
+        );
         window.open(link, "_blank");
       } else {
         const amountToMention =
           settlement?.action === "pay_more" || settlement?.action === "pay_full"
             ? settlement.action_amount
             : record.amount;
-        const message = `Hei ${participantName}, jangan lupa pembayaran event ya. Saat ini masih perlu bayar ${formatRupiah(amountToMention)}.`;
+        const paymentUrl = `${window.location.origin}/events/${shareToken}/payment`;
+        const message = `Hei ${participantName}, jangan lupa pembayaran event ya. Saat ini masih perlu bayar ${formatRupiah(amountToMention)}.\n\nLink pembayaran:\n${paymentUrl}`;
         window.open(generateWhatsAppShareLink(message), "_blank");
       }
     } catch (error) {
@@ -64,11 +69,14 @@ export const PaymentRecordRow = ({
   const hasClaimHistory = claims.length > 0;
   const canNudge = Boolean(record.participant?.user_id);
   const canEdit = isCreator && eventStatus === "payment_open";
-  const needsAdditionalPayment = settlement?.action === "pay_more" || settlement?.action === "pay_full";
+  const needsAdditionalPayment =
+    settlement?.action === "pay_more" || settlement?.action === "pay_full";
   const canCreatorConfirm =
     isCreator &&
     eventStatus === "payment_open" &&
-    (record.status === "pending" || record.status === "claimed" || needsAdditionalPayment);
+    (record.status === "pending" ||
+      record.status === "claimed" ||
+      needsAdditionalPayment);
   const canCreatorNudge =
     isCreator &&
     eventStatus === "payment_open" &&
@@ -88,47 +96,55 @@ export const PaymentRecordRow = ({
       <div className="rounded-lg bg-gray-50 p-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex items-center gap-3">
-          {isGuestParticipant ? (
-            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center">
-              <UserRound className="w-4 h-4" />
-            </div>
-          ) : (
-            <Avatar
-              src={record.participant?.user?.avatar_url}
-              name={record.participant?.user?.name}
-              size="md"
-            />
-          )}
-          <div className="min-w-0">
-            <p className={`font-medium text-gray-900 ${isGuestParticipant ? "italic" : ""}`}>
-              {participantName}
-            </p>
-            <p className="text-sm text-gray-700">
-              {formatRupiah(record.amount)}
-            </p>
-            {record.note && (
-              <p className="text-xs text-gray-500">{record.note}</p>
+            {isGuestParticipant ? (
+              <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center">
+                <UserRound className="w-4 h-4" />
+              </div>
+            ) : (
+              <Avatar
+                src={record.participant?.user?.avatar_url}
+                name={record.participant?.user?.name}
+                size="md"
+              />
             )}
-            {settlementText && (
+            <div className="min-w-0">
               <p
-                className={`text-xs mt-0.5 ${
-                  settlement?.action === "receive_refund"
-                    ? "text-green-700"
-                    : "text-amber-700"
-                }`}
+                className={`font-medium text-gray-900 ${isGuestParticipant ? "italic" : ""}`}
               >
-                {record.status === "confirmed" && record.paid_amount > 0
-                  ? `Paid ${formatRupiah(record.paid_amount)}. ${settlementText}.`
-                  : settlementText}
+                {participantName}
               </p>
-            )}
+              <p className="text-sm text-gray-700">
+                {formatRupiah(record.amount)}
+              </p>
+              {record.note && (
+                <p className="text-xs text-gray-500">{record.note}</p>
+              )}
+              {settlementText && (
+                <p
+                  className={`text-xs mt-0.5 ${
+                    settlement?.action === "receive_refund"
+                      ? "text-green-700"
+                      : "text-amber-700"
+                  }`}
+                >
+                  {record.status === "confirmed" && record.paid_amount > 0
+                    ? `Paid ${formatRupiah(record.paid_amount)}. ${settlementText}.`
+                    : settlementText}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <Badge
-              variant={record.status === "confirmed" ? "pending" : record.status}
-              className={record.status === "confirmed" ? "bg-green-100 text-green-700" : ""}
+              variant={
+                record.status === "confirmed" ? "pending" : record.status
+              }
+              className={
+                record.status === "confirmed"
+                  ? "bg-green-100 text-green-700"
+                  : ""
+              }
             >
               {record.status === "confirmed" ? "Paid" : record.status}
             </Badge>
@@ -197,7 +213,10 @@ export const PaymentRecordRow = ({
             )}
 
             {claims.map((claim) => (
-              <div key={claim.id} className="rounded-xl border border-gray-200 p-3">
+              <div
+                key={claim.id}
+                className="rounded-xl border border-gray-200 p-3"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-gray-900">
@@ -228,7 +247,9 @@ export const PaymentRecordRow = ({
                     className="mt-3 w-full rounded-lg"
                   />
                 ) : (
-                  <p className="mt-2 text-xs text-gray-400">No proof image uploaded.</p>
+                  <p className="mt-2 text-xs text-gray-400">
+                    No proof image uploaded.
+                  </p>
                 )}
               </div>
             ))}

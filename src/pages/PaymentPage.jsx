@@ -687,6 +687,7 @@ export const PaymentPage = () => {
                       })
                     }
                     eventId={event.id}
+                    shareToken={shareToken}
                     eventStatus={event.status}
                   />
                 ))}
