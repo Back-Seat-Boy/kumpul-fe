@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { Calendar, MapPin, Users, ArrowLeft, Check, ExternalLink, Crown, PlusCircle, MinusCircle, AlertCircle, UserRound } from "lucide-react";
 import { useEvent, useUpdateEventStatus, useSetChosenOption } from "../hooks/useEvents";
 import { useOptionsWithVoters, useVotedOptionIds } from "../hooks/useOptions";
+import { usePayment } from "../hooks/usePayments";
 import { useParticipants, useJoinEvent, useLeaveEvent, useAddGuestParticipant, useRemoveParticipant, useRemovalImpact } from "../hooks/useParticipants";
 import { useCastVote, useRemoveVote } from "../hooks/useVotes";
 import { useAuthStore } from "../store/authStore";
@@ -67,6 +68,10 @@ export const EventDetailPage = () => {
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
   const { data: options } = useOptionsWithVoters(event?.id, shareToken);
   const { data: participants } = useParticipants(shareToken);
+  const { data: paymentData } = usePayment(
+    event?.id,
+    !!sessionId && (event?.status === "payment_open" || event?.status === "completed"),
+  );
 
   const votedOptionIds = useVotedOptionIds(options);
 
@@ -301,7 +306,12 @@ export const EventDetailPage = () => {
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <ShareButton shareToken={event.share_token} />
+            <ShareButton
+              shareToken={event.share_token}
+              event={event}
+              chosenOption={chosenOption}
+              payment={paymentData?.payment}
+            />
             {/* Join/Leave only allowed when status is open or payment_open */}
             {sessionId && !isCreator && (event.status === "open" || event.status === "payment_open") && (
               <Button

@@ -6,6 +6,7 @@ import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { formatDateTime, formatRupiah } from "../../utils/format";
 import { getNudgeWhatsAppLink } from "../../api/whatsapp";
+import { generateWhatsAppShareLink } from "../../utils/whatsapp";
 import { useToastStore, getErrorMessage } from "../../utils/toast";
 
 export const PaymentRecordRow = ({
@@ -36,8 +37,17 @@ export const PaymentRecordRow = ({
   const handleNudge = async () => {
     setIsNudging(true);
     try {
-      const { link } = await getNudgeWhatsAppLink(eventId, record.participant.user_id);
-      window.open(link, "_blank");
+      if (record.participant?.user?.whatsapp_number) {
+        const { link } = await getNudgeWhatsAppLink(eventId, record.participant.user_id);
+        window.open(link, "_blank");
+      } else {
+        const amountToMention =
+          settlement?.action === "pay_more" || settlement?.action === "pay_full"
+            ? settlement.action_amount
+            : record.amount;
+        const message = `Hei ${participantName}, jangan lupa pembayaran event ya. Saat ini masih perlu bayar ${formatRupiah(amountToMention)}.`;
+        window.open(generateWhatsAppShareLink(message), "_blank");
+      }
     } catch (error) {
       showError(getErrorMessage(error));
     } finally {
@@ -52,7 +62,7 @@ export const PaymentRecordRow = ({
   const claims = record.claims || [];
   const latestClaim = claims[0];
   const hasClaimHistory = claims.length > 0;
-  const canNudge = Boolean(record.participant?.user_id && record.participant?.user?.whatsapp_number);
+  const canNudge = Boolean(record.participant?.user_id);
   const canEdit = isCreator && eventStatus === "payment_open";
   const needsAdditionalPayment = settlement?.action === "pay_more" || settlement?.action === "pay_full";
   const canCreatorConfirm =
@@ -75,8 +85,9 @@ export const PaymentRecordRow = ({
 
   return (
     <>
-      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-        <div className="flex items-center gap-3">
+      <div className="rounded-lg bg-gray-50 p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex items-center gap-3">
           {isGuestParticipant ? (
             <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center">
               <UserRound className="w-4 h-4" />
@@ -88,7 +99,7 @@ export const PaymentRecordRow = ({
               size="md"
             />
           )}
-          <div>
+          <div className="min-w-0">
             <p className={`font-medium text-gray-900 ${isGuestParticipant ? "italic" : ""}`}>
               {participantName}
             </p>
@@ -114,60 +125,59 @@ export const PaymentRecordRow = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={record.status === "confirmed" ? "pending" : record.status}
-            className={record.status === "confirmed" ? "bg-green-100 text-green-700" : ""}
-          >
-            {record.status === "confirmed" ? "Paid" : record.status}
-          </Badge>
-
-          {hasClaimHistory && (
-            <button
-              onClick={() => setIsImageOpen(true)}
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-              title="View claim history"
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <Badge
+              variant={record.status === "confirmed" ? "pending" : record.status}
+              className={record.status === "confirmed" ? "bg-green-100 text-green-700" : ""}
             >
-              <Eye className="w-4 h-4" />
-            </button>
-          )}
+              {record.status === "confirmed" ? "Paid" : record.status}
+            </Badge>
 
-          {/* Confirm button only when payment_open */}
-          {canEdit && (
-            <Button
-              variant="ghost"
-              onClick={() => onEdit(record)}
-              className="px-2 py-1 text-xs"
-            >
-              <Pencil className="w-3 h-3" />
-              Edit
-            </Button>
-          )}
+            {hasClaimHistory && (
+              <button
+                onClick={() => setIsImageOpen(true)}
+                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                title="View claim history"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            )}
 
-          {canCreatorConfirm && (
-            <Button
-              variant="primary"
-              onClick={handleConfirm}
-              loading={isConfirming}
-              className="px-2 py-1 text-xs"
-            >
-              <Check className="w-3 h-3" />
-              Confirm
-            </Button>
-          )}
+            {canEdit && (
+              <Button
+                variant="ghost"
+                onClick={() => onEdit(record)}
+                className="px-2 py-1 text-xs"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit
+              </Button>
+            )}
 
-          {/* Nudge button only when payment_open */}
-          {canCreatorNudge && (
-            <Button
-              variant="secondary"
-              onClick={handleNudge}
-              loading={isNudging}
-              className="px-2 py-1 text-xs"
-            >
-              <MessageCircle className="w-3 h-3" />
-              Nudge
-            </Button>
-          )}
+            {canCreatorConfirm && (
+              <Button
+                variant="primary"
+                onClick={handleConfirm}
+                loading={isConfirming}
+                className="px-2 py-1 text-xs"
+              >
+                <Check className="w-3 h-3" />
+                Confirm
+              </Button>
+            )}
+
+            {canCreatorNudge && (
+              <Button
+                variant="secondary"
+                onClick={handleNudge}
+                loading={isNudging}
+                className="px-2 py-1 text-xs"
+              >
+                <MessageCircle className="w-3 h-3" />
+                Nudge
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
