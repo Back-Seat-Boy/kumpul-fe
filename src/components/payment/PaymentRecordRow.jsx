@@ -51,7 +51,7 @@ export const PaymentRecordRow = ({
             ? settlement.action_amount
             : record.amount;
         const paymentUrl = `${window.location.origin}/events/${shareToken}/payment`;
-        const message = `Hei ${participantName}, jangan lupa pembayaran event ${eventName} ya. Saat ini masih perlu bayar ${formatRupiah(amountToMention)}.\n\nCek detil pembayaran disini ya:\n${paymentUrl}`;
+        const message = `Hei ${participantName}, jangan lupa pembayaran ${eventName} ya. Saat ini masih perlu bayar ${formatRupiah(amountToMention)}.\n\nCek detil dan konfirmasi pembayaran kesini ya!\n${paymentUrl}`;
         window.open(generateWhatsAppShareLink(message), "_blank");
       }
     } catch (error) {
