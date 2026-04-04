@@ -81,7 +81,7 @@ export const PaymentRecordRow = ({
   const canCreatorNudge =
     isCreator &&
     eventStatus === "payment_open" &&
-    canNudge &&
+    // canNudge &&
     (record.status === "pending" || needsAdditionalPayment);
   const settlementText =
     settlement?.action && settlement.action !== "no_action"
