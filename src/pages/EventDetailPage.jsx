@@ -48,6 +48,64 @@ const getEmbeddableMapUrl = (mapsUrl) => {
   }
 };
 
+const formatGoogleCalendarDateTime = (dateStr, timeStr = "00:00") => {
+  if (!dateStr) return null;
+  const datePart = dateStr.slice(0, 10);
+  const safeTime = timeStr || "00:00";
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = safeTime.split(":").map(Number);
+
+  return `${String(year).padStart(4, "0")}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}T${String(hour || 0).padStart(2, "0")}${String(minute || 0).padStart(2, "0")}00`;
+};
+
+const addMinutesToGoogleCalendarDateTime = (calendarDateTime, minutesToAdd = 120) => {
+  if (!calendarDateTime || calendarDateTime.length < 15) return calendarDateTime;
+  const year = parseInt(calendarDateTime.slice(0, 4), 10);
+  const month = parseInt(calendarDateTime.slice(4, 6), 10) - 1;
+  const day = parseInt(calendarDateTime.slice(6, 8), 10);
+  const hour = parseInt(calendarDateTime.slice(9, 11), 10);
+  const minute = parseInt(calendarDateTime.slice(11, 13), 10);
+
+  const date = new Date(year, month, day, hour, minute, 0);
+  date.setMinutes(date.getMinutes() + minutesToAdd);
+
+  return `${String(date.getFullYear()).padStart(4, "0")}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}${String(date.getMinutes()).padStart(2, "0")}00`;
+};
+
+const getGoogleCalendarUrl = ({ event, chosenOption, shareToken }) => {
+  if (!event || !chosenOption?.date) return null;
+
+  const start = formatGoogleCalendarDateTime(chosenOption.date, chosenOption.start_time || "00:00");
+  const end = chosenOption.end_time
+    ? formatGoogleCalendarDateTime(chosenOption.date, chosenOption.end_time)
+    : addMinutesToGoogleCalendarDateTime(start, 120);
+  const location = chosenOption.venue?.name
+    ? `${chosenOption.venue.name}${chosenOption.venue?.address ? `, ${chosenOption.venue.address}` : ""}`
+    : "";
+  const shareUrl = `${window.location.origin}/events/${shareToken}`;
+  const detailsLines = [
+    event.description,
+    chosenOption.venue?.maps_url ? `Map: ${chosenOption.venue.maps_url}` : "",
+    `Event: ${shareUrl}`,
+  ].filter(Boolean);
+
+  if (!start || !end) return null;
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: event.title || "Kumpul Event",
+    dates: `${start}/${end}`,
+    details: detailsLines.join("\n\n"),
+    ctz: "Asia/Jakarta",
+  });
+
+  if (location) {
+    params.set("location", location);
+  }
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+};
+
 export const EventDetailPage = () => {
   const { shareToken } = useParams();
   const navigate = useNavigate();
@@ -229,6 +287,8 @@ export const EventDetailPage = () => {
   const creatorParticipant = participants?.find((p) => p.user_id === event.created_by);
   const chosenOptionMapsUrl = chosenOption?.venue?.maps_url;
   const chosenOptionEmbedUrl = getEmbeddableMapUrl(chosenOptionMapsUrl);
+  const addToCalendarUrl = getGoogleCalendarUrl({ event, chosenOption, shareToken });
+  const canAddToCalendar = Boolean(chosenOption && (hasJoined || isCreator));
   const removeParticipantName = participantToRemove?.is_guest
     ? participantToRemove?.guest_name
     : participantToRemove?.user?.name;
@@ -351,6 +411,19 @@ export const EventDetailPage = () => {
                 {chosenOption.start_time} - {chosenOption.end_time}
               </span>
             </div>
+            {canAddToCalendar && addToCalendarUrl && (
+              <div className="mt-3">
+                <a
+                  href={addToCalendarUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-800"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Add to Google Calendar
+                </a>
+              </div>
+            )}
             {chosenOptionMapsUrl && (
               <div className="mt-3 space-y-2">
                 <a
