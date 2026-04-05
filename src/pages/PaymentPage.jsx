@@ -685,7 +685,9 @@ export const PaymentPage = () => {
                       /orang
                     </p>
                   </div>
-                  {isCreator && event.status === "payment_open" && (
+                  {isCreator &&
+                    event.status === "payment_open" &&
+                    payment?.type !== "split_bill" && (
                     <Button
                       variant="secondary"
                       onClick={() => setChargeAllOpen(true)}
