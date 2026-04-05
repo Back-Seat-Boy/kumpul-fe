@@ -116,6 +116,14 @@ export const EventCard = ({ event }) => {
         <EventStatusBadge status={event.status} />
       </div>
 
+      {event.visibility && (
+        <div className="mb-2">
+          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+            {event.visibility === "public" ? "Public" : "Invite only"}
+          </span>
+        </div>
+      )}
+
       {event.description && (
         <p className="text-sm text-gray-500 line-clamp-1 mb-3">{event.description}</p>
       )}

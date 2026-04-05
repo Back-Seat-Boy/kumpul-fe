@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
+import { useAuthStore } from "../store/authStore";
 import { listOptions, listOptionsWithVoters, createOption, deleteOption } from "../api/options";
 
 // Hook for fetching basic options - includes has_voted field for authenticated users
@@ -36,10 +37,17 @@ export const useOptionsWithVoters = (eventId, shareToken) => {
 
 // Hook to get user's voted option IDs from the has_voted field
 export const useVotedOptionIds = (options) => {
+  const userId = useAuthStore((state) => state.user?.id);
+
   if (!options) return [];
-  return options
-    .filter((opt) => opt.has_voted)
+  const votedIds = options
+    .filter(
+      (opt) =>
+        opt.has_voted ||
+        (userId && Array.isArray(opt.voters) && opt.voters.some((v) => v.user_id === userId)),
+    )
     .map((opt) => opt.id);
+  return [...new Set(votedIds)];
 };
 
 export const useCreateOption = () => {

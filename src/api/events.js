@@ -1,7 +1,7 @@
 import api from "./axios";
 
 // List events with pagination and filters
-// params: { page, limit, status, search }
+// params: { page, limit, status, search, visibility }
 export const listEvents = async (params = {}) => {
   const queryParams = new URLSearchParams();
   
@@ -9,6 +9,7 @@ export const listEvents = async (params = {}) => {
   if (params.limit) queryParams.set("limit", params.limit);
   if (params.status) queryParams.set("status", params.status);
   if (params.search) queryParams.set("search", params.search);
+  if (params.visibility) queryParams.set("visibility", params.visibility);
   
   const query = queryParams.toString();
   const url = query ? `/api/events/?${query}` : "/api/events/";

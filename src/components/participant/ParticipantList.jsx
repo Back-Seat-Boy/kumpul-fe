@@ -14,7 +14,7 @@ export const ParticipantList = ({
     return (
       <div className="flex items-center gap-2 text-sm text-gray-400">
         <Users className="w-4 h-4" />
-        <span>No participants yet</span>
+        <span>No registrants yet</span>
       </div>
     );
   }
@@ -69,7 +69,7 @@ export const ParticipantList = ({
       
       {/* Summary */}
       <p className="text-xs text-gray-400">
-        {participants.length} participant{participants.length !== 1 ? "s" : ""}
+        {participants.length} registrant{participants.length !== 1 ? "s" : ""}
       </p>
     </div>
   );

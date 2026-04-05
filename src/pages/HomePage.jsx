@@ -17,11 +17,18 @@ const EVENT_STATUSES = [
   { value: "completed", label: "Completed" },
 ];
 
+const EVENT_VISIBILITIES = [
+  { value: "", label: "All Visibility" },
+  { value: "public", label: "Public" },
+  { value: "invite_only", label: "Invite only" },
+];
+
 const LIMIT = 10;
 
 export const HomePage = () => {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
+  const [visibility, setVisibility] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
@@ -29,6 +36,7 @@ export const HomePage = () => {
     page,
     limit: LIMIT,
     status: status || undefined,
+    visibility: visibility || undefined,
     search: search || undefined,
   });
 
@@ -51,6 +59,11 @@ export const HomePage = () => {
 
   const handleStatusChange = (e) => {
     setStatus(e.target.value);
+    setPage(1);
+  };
+
+  const handleVisibilityChange = (e) => {
+    setVisibility(e.target.value);
     setPage(1);
   };
 
@@ -97,7 +110,7 @@ export const HomePage = () => {
         </form>
 
         {/* Status Filter */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <label className="text-sm text-gray-500">Filter by:</label>
           <select
             value={status}
@@ -110,10 +123,22 @@ export const HomePage = () => {
               </option>
             ))}
           </select>
-          {(status || search) && (
+          <select
+            value={visibility}
+            onChange={handleVisibilityChange}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          >
+            {EVENT_VISIBILITIES.map((v) => (
+              <option key={v.value} value={v.value}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+          {(status || visibility || search) && (
             <button
               onClick={() => {
                 setStatus("");
+                setVisibility("");
                 setSearch("");
                 setSearchInput("");
                 setPage(1);
@@ -132,6 +157,7 @@ export const HomePage = () => {
           {total} event{total !== 1 ? "s" : ""} found
           {search && ` for "${search}"`}
           {status && ` in ${EVENT_STATUSES.find(s => s.value === status)?.label}`}
+          {visibility && ` (${EVENT_VISIBILITIES.find(v => v.value === visibility)?.label})`}
         </p>
       )}
 
@@ -152,6 +178,7 @@ export const HomePage = () => {
           title="No events found"
           description={
             search || status
+              || visibility
               ? "Try adjusting your filters or search terms."
               : "Create one and share with your group."
           }

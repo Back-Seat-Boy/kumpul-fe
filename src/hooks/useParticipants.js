@@ -3,7 +3,9 @@ import { useToastStore, getErrorMessage } from "../utils/toast";
 import {
   listParticipants,
   joinEvent,
+  joinEventByShare,
   addGuestParticipant,
+  addGuestParticipantByShare,
   leaveEvent,
   getRemovalImpact,
   removeParticipant,
@@ -30,7 +32,8 @@ export const useJoinEvent = () => {
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   return useMutation({
-    mutationFn: ({ eventId, shareToken }) => joinEvent(eventId),
+    mutationFn: ({ eventId, shareToken }) =>
+      shareToken ? joinEventByShare(shareToken) : joinEvent(eventId),
     onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
@@ -66,7 +69,10 @@ export const useAddGuestParticipant = () => {
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   return useMutation({
-    mutationFn: ({ eventId, guestName }) => addGuestParticipant(eventId, guestName),
+    mutationFn: ({ eventId, shareToken, guestName }) =>
+      shareToken
+        ? addGuestParticipantByShare(shareToken, guestName)
+        : addGuestParticipant(eventId, guestName),
     onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });

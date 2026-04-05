@@ -2,7 +2,6 @@ import { MapPin, Calendar, Clock, Users, ExternalLink } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Avatar } from "../ui/Avatar";
 import { formatDate, formatTime } from "../../utils/format";
-import { useAuthStore } from "../../store/authStore";
 
 const getEmbeddableMapUrl = (mapsUrl) => {
   if (!mapsUrl) return null;
@@ -39,10 +38,10 @@ export const OptionCard = ({
   onVote,
   onUnvote,
   isVoting,
+  voteDisabled = false,
+  voteDisabledReason = "",
   showVotes = true,
 }) => {
-  const user = useAuthStore((state) => state.user);
-
   const handleVoteClick = () => {
     if (hasVoted) {
       onUnvote();
@@ -166,15 +165,21 @@ export const OptionCard = ({
         </div>
       )}
 
-      {onVote && user && (
-        <Button
-          variant={hasVoted ? "secondary" : "primary"}
-          onClick={handleVoteClick}
-          loading={isVoting}
-          className="w-full mt-3"
-        >
-          {hasVoted ? "Unvote" : "Vote"}
-        </Button>
+      {onVote && (
+        <div className="mt-3 space-y-1.5">
+          <Button
+            variant={hasVoted ? "secondary" : "primary"}
+            onClick={handleVoteClick}
+            loading={isVoting}
+            disabled={voteDisabled}
+            className="w-full"
+          >
+            {hasVoted ? "Unvote" : "Vote"}
+          </Button>
+          {voteDisabled && voteDisabledReason && (
+            <p className="text-xs text-red-500">{voteDisabledReason}</p>
+          )}
+        </div>
       )}
     </div>
   );

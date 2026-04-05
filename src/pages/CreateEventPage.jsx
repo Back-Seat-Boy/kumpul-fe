@@ -14,7 +14,11 @@ import { useToastStore, getErrorMessage } from "../utils/toast";
 
 export const CreateEventPage = () => {
   const navigate = useNavigate();
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    defaultValues: {
+      visibility: "invite_only",
+    },
+  });
   const [options, setOptions] = useState([{ venueId: "", date: "", startTime: "", endTime: "" }]);
   const [isVenueModalOpen, setIsVenueModalOpen] = useState(false);
   const showError = useToastStore((state) => state.showError);
@@ -25,6 +29,10 @@ export const CreateEventPage = () => {
   const createVenue = useCreateVenue();
 
   const venueOptions = venues.map((v) => ({ value: v.id, label: v.name }));
+  const visibilityOptions = [
+    { value: "invite_only", label: "Invite Only" },
+    { value: "public", label: "Public" },
+  ];
 
   const addOption = () => {
     if (options.length < 3) {
@@ -66,6 +74,7 @@ export const CreateEventPage = () => {
       const event = await createEvent.mutateAsync({
         title: data.title,
         description: data.description,
+        visibility: data.visibility || "invite_only",
         player_cap: data.player_cap ? parseInt(data.player_cap) : null,
         voting_deadline: votingDeadline,
         options: formattedOptions,
@@ -110,6 +119,16 @@ export const CreateEventPage = () => {
             label="Description"
             placeholder="What's this event about?"
             {...register("description")}
+          />
+
+          <Select
+            label="Event Visibility"
+            options={visibilityOptions}
+            required
+            defaultValue="invite_only"
+            {...register("visibility", {
+              required: "Visibility is required",
+            })}
           />
 
           <div className="grid grid-cols-2 gap-4">

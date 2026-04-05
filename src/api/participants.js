@@ -15,8 +15,20 @@ export const joinEvent = async (eventId) => {
   return res.data;
 };
 
+export const joinEventByShare = async (shareToken) => {
+  const res = await api.post(`/api/events/share/${shareToken}/participants/`);
+  return res.data;
+};
+
 export const addGuestParticipant = async (eventId, guestName) => {
   const res = await api.post(`/api/events/${eventId}/participants/guest/`, {
+    guest_name: guestName,
+  });
+  return res.data;
+};
+
+export const addGuestParticipantByShare = async (shareToken, guestName) => {
+  const res = await api.post(`/api/events/share/${shareToken}/participants/guest/`, {
     guest_name: guestName,
   });
   return res.data;
