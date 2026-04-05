@@ -25,6 +25,7 @@ import {
   useUpdatePaymentConfig,
 } from "../hooks/usePayments";
 import { useEvent, useUpdateEventStatus } from "../hooks/useEvents";
+import { useParticipants } from "../hooks/useParticipants";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "../components/ui/Button";
 import { CurrencyInput } from "../components/ui/CurrencyInput";
@@ -96,6 +97,90 @@ const getActionButtonText = (action) => {
   }
 };
 
+const getParticipantDisplayName = (participant) => {
+  if (!participant) return "Participant";
+  const hasGuestName = Boolean(participant.guest_name);
+  const isGuestLike = participant.is_guest || (!participant.user_id && hasGuestName);
+
+  if (isGuestLike) return participant.guest_name || "Guest";
+  return participant.user?.name || participant.guest_name || "Participant";
+};
+
+const getSplitBillItemParticipantIds = (item) => {
+  if (Array.isArray(item?.assignments)) {
+    return item.assignments
+      .map((assignment) => assignment.participant_id || assignment.id)
+      .filter(Boolean);
+  }
+  if (Array.isArray(item?.participant_ids)) return item.participant_ids;
+  if (Array.isArray(item?.assigned_participant_ids)) {
+    return item.assigned_participant_ids;
+  }
+  if (Array.isArray(item?.assigned_participants)) {
+    return item.assigned_participants
+      .map((participant) => participant.participant_id || participant.id)
+      .filter(Boolean);
+  }
+  if (Array.isArray(item?.splits)) {
+    return item.splits
+      .map((split) => split.participant_id || split.id)
+      .filter(Boolean);
+  }
+  if (Array.isArray(item?.participants)) {
+    return item.participants
+      .map((p) => p.participant_id || p.id)
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const getSplitBillItemAssignments = (item) => {
+  if (!Array.isArray(item?.assignments)) return [];
+  return item.assignments
+    .map((assignment) => ({
+      participant_id: assignment.participant_id || assignment.id,
+      display_name: assignment.display_name || null,
+      amount: assignment.amount ?? null,
+    }))
+    .filter((assignment) => assignment.participant_id);
+};
+
+const getSplitParticipantId = (entry) =>
+  entry?.participant_id || entry?.id || null;
+
+const normalizeId = (value) => String(value ?? "").trim();
+
+const getSplitParticipantName = (entry) =>
+  entry?.display_name || entry?.name || entry?.participant_name || null;
+
+const getSplitPreTaxSubtotal = (entry) =>
+  entry?.pre_tax_subtotal ??
+  entry?.subtotal ??
+  entry?.sub_total ??
+  entry?.base_amount ??
+  0;
+
+const getSplitAllocatedTax = (entry) =>
+  entry?.allocated_tax ??
+  entry?.tax_share ??
+  entry?.tax_amount ??
+  entry?.tax ??
+  0;
+
+const getSplitFinalTotal = (entry) =>
+  entry?.final_total ?? entry?.total ?? entry?.amount ?? 0;
+
+const canonicalizeParticipantIds = (ids = [], options = []) => {
+  const normalizedIds = ids.map((id) => normalizeId(id)).filter(Boolean);
+  const resolved = normalizedIds.map((id) => {
+    const matched = options.find((option) =>
+      option.aliases.map((alias) => normalizeId(alias)).includes(id),
+    );
+    return matched?.id || id;
+  });
+  return Array.from(new Set(resolved.map((id) => normalizeId(id)).filter(Boolean)));
+};
+
 export const PaymentPage = () => {
   const { shareToken } = useParams();
   const user = useAuthStore((state) => state.user);
@@ -107,6 +192,10 @@ export const PaymentPage = () => {
   const [paymentType, setPaymentType] = useState("total");
   const [totalCost, setTotalCost] = useState("");
   const [perPersonAmount, setPerPersonAmount] = useState("");
+  const [splitBillTaxAmount, setSplitBillTaxAmount] = useState(0);
+  const [splitBillItems, setSplitBillItems] = useState([
+    { name: "", price: "", participant_ids: [] },
+  ]);
   const [paymentInfo, setPaymentInfo] = useState("");
   const [isEditPaymentInfoOpen, setIsEditPaymentInfoOpen] = useState(false);
   const [editedPaymentInfo, setEditedPaymentInfo] = useState("");
@@ -114,6 +203,10 @@ export const PaymentPage = () => {
   const [editedPaymentType, setEditedPaymentType] = useState("total");
   const [editedTotalCost, setEditedTotalCost] = useState("");
   const [editedPerPersonAmount, setEditedPerPersonAmount] = useState("");
+  const [editedSplitBillTaxAmount, setEditedSplitBillTaxAmount] = useState(0);
+  const [editedSplitBillItems, setEditedSplitBillItems] = useState([
+    { name: "", price: "", participant_ids: [] },
+  ]);
   const [isUploading, setIsUploading] = useState(false);
 
   // Adjustment modal state
@@ -128,6 +221,7 @@ export const PaymentPage = () => {
   const [chargeAllNote, setChargeAllNote] = useState("");
 
   const { data: event } = useEvent(shareToken);
+  const { data: participants = [] } = useParticipants(shareToken);
   const { data: paymentData, isLoading } = usePayment(event?.id, !!sessionId);
 
   const createPayment = useCreatePayment();
@@ -150,6 +244,63 @@ export const PaymentPage = () => {
   const unsettledPeople = perPersonStatus.filter(
     (person) => person.action !== "no_action",
   );
+  const splitBillData = paymentData?.split_bill;
+  const participantOptions = payment
+    ? records
+        .map((record) => {
+          const participant = record.participant || {};
+          const participantId = normalizeId(
+            participant.id || record.participant_id,
+          );
+          const aliases = Array.from(
+            new Set(
+              [
+                participantId,
+                normalizeId(record.participant_id),
+              ].filter(Boolean),
+            ),
+          );
+
+          return {
+            id: participantId || aliases[0] || "",
+            aliases,
+            label: getParticipantDisplayName(participant),
+          };
+        })
+        .filter((option) => option.id)
+    : participants
+        .map((participant) => {
+          const participantId = normalizeId(participant.id);
+          const aliases = Array.from(new Set([participantId].filter(Boolean)));
+
+          return {
+            id: participantId || aliases[0] || "",
+            aliases,
+            label: getParticipantDisplayName(participant),
+          };
+        })
+        .filter((option) => option.id);
+  const splitParticipantLabelMap = new Map();
+  participantOptions.forEach((option) => {
+    option.aliases
+      .filter(Boolean)
+      .forEach((alias) =>
+        splitParticipantLabelMap.set(normalizeId(alias), option.label),
+      );
+    splitParticipantLabelMap.set(normalizeId(option.id), option.label);
+  });
+  (splitBillData?.participants || []).forEach((entry) => {
+    const entryId = getSplitParticipantId(entry);
+    const entryName = getSplitParticipantName(entry);
+    const normalizedEntryId = normalizeId(entryId);
+    if (
+      normalizedEntryId &&
+      entryName &&
+      !splitParticipantLabelMap.has(normalizedEntryId)
+    ) {
+      splitParticipantLabelMap.set(normalizedEntryId, entryName);
+    }
+  });
 
   const confirmedCount =
     summary?.num_confirmed ??
@@ -172,6 +323,58 @@ export const PaymentPage = () => {
     (userSettlement?.action === "pay_full" ||
       userSettlement?.action === "pay_more");
 
+  const isValidSplitBillItems = (items) =>
+    items.length > 0 &&
+    items.every(
+      (item) =>
+        item.name?.trim() &&
+        Number(item.price) > 0 &&
+        Array.isArray(item.participant_ids) &&
+        item.participant_ids.length > 0,
+    );
+
+  const updateSplitBillItem = (index, patch) => {
+    setSplitBillItems((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, ...patch } : item)),
+    );
+  };
+
+  const updateEditedSplitBillItem = (index, patch) => {
+    setEditedSplitBillItems((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, ...patch } : item)),
+    );
+  };
+
+  const addSplitBillItem = () => {
+    setSplitBillItems((prev) => [
+      ...prev,
+      { name: "", price: "", participant_ids: [] },
+    ]);
+  };
+
+  const addEditedSplitBillItem = () => {
+    setEditedSplitBillItems((prev) => [
+      ...prev,
+      { name: "", price: "", participant_ids: [] },
+    ]);
+  };
+
+  const removeSplitBillItem = (index) => {
+    setSplitBillItems((prev) =>
+      prev.filter((_, idx) => idx !== index).length
+        ? prev.filter((_, idx) => idx !== index)
+        : [{ name: "", price: "", participant_ids: [] }],
+    );
+  };
+
+  const removeEditedSplitBillItem = (index) => {
+    setEditedSplitBillItems((prev) =>
+      prev.filter((_, idx) => idx !== index).length
+        ? prev.filter((_, idx) => idx !== index)
+        : [{ name: "", price: "", participant_ids: [] }],
+    );
+  };
+
   const handleCreatePayment = async () => {
     try {
       await createPayment.mutateAsync({
@@ -179,8 +382,17 @@ export const PaymentPage = () => {
         data: {
           type: paymentType,
           ...(paymentType === "per_person"
-            ? { per_person_amount: parseInt(perPersonAmount) || 0 }
-            : { total_cost: parseInt(totalCost) || 0 }),
+            ? { per_person_amount: parseInt(perPersonAmount, 10) || 0 }
+            : paymentType === "split_bill"
+              ? {
+                  tax_amount: parseInt(splitBillTaxAmount, 10) || 0,
+                  split_bill_items: splitBillItems.map((item) => ({
+                    name: item.name.trim(),
+                    price: parseInt(item.price, 10) || 0,
+                    participant_ids: item.participant_ids,
+                  })),
+                }
+              : { total_cost: parseInt(totalCost, 10) || 0 }),
           payment_info: paymentInfo,
         },
       });
@@ -195,6 +407,8 @@ export const PaymentPage = () => {
       setPaymentType("total");
       setTotalCost("");
       setPerPersonAmount("");
+      setSplitBillTaxAmount(0);
+      setSplitBillItems([{ name: "", price: "", participant_ids: [] }]);
       setPaymentInfo("");
     } catch (error) {
       showError(getErrorMessage(error));
@@ -270,6 +484,19 @@ export const PaymentPage = () => {
         ? payment?.base_split || ""
         : payment?.base_split || "",
     );
+    setEditedSplitBillTaxAmount(payment?.tax_amount || 0);
+    setEditedSplitBillItems(
+      splitBillData?.items?.length
+        ? splitBillData.items.map((item) => ({
+            name: item.name || "",
+            price: item.price || "",
+            participant_ids: canonicalizeParticipantIds(
+              getSplitBillItemParticipantIds(item),
+              participantOptions,
+            ),
+          }))
+        : [{ name: "", price: "", participant_ids: [] }],
+    );
     setIsEditPaymentConfigOpen(true);
   };
 
@@ -281,7 +508,16 @@ export const PaymentPage = () => {
           type: editedPaymentType,
           ...(editedPaymentType === "per_person"
             ? { per_person_amount: parseInt(editedPerPersonAmount, 10) || 0 }
-            : { total_cost: parseInt(editedTotalCost, 10) || 0 }),
+            : editedPaymentType === "split_bill"
+              ? {
+                  tax_amount: parseInt(editedSplitBillTaxAmount, 10) || 0,
+                  split_bill_items: editedSplitBillItems.map((item) => ({
+                    name: item.name.trim(),
+                    price: parseInt(item.price, 10) || 0,
+                    participant_ids: item.participant_ids,
+                  })),
+                }
+              : { total_cost: parseInt(editedTotalCost, 10) || 0 }),
         },
       });
       setIsEditPaymentConfigOpen(false);
@@ -569,6 +805,7 @@ export const PaymentPage = () => {
                     const style = getActionStyle(person.action);
                     const buttonText = getActionButtonText(person.action);
                     const showAdjustButton =
+                      payment?.type !== "split_bill" &&
                       event.status === "payment_open" &&
                       person.status === "confirmed" &&
                       (person.action === "pay_more" ||
@@ -630,18 +867,54 @@ export const PaymentPage = () => {
                     {payment.type?.replace("_", " ") || "total"}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Cost</span>
-                  <span className="font-semibold">
-                    {formatRupiah(payment.total_cost)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Per Person</span>
-                  <span className="font-semibold">
-                    {formatRupiah(payment.base_split)}
-                  </span>
-                </div>
+                {payment.type === "per_person" ? (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Per Person Setup</span>
+                    <span className="font-semibold">
+                      {formatRupiah(payment.base_split)}
+                    </span>
+                  </div>
+                ) : payment.type === "split_bill" ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total (with tax)</span>
+                      <span className="font-semibold">
+                        {formatRupiah(
+                          splitBillData?.grand_total ?? payment.total_cost,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total (before tax)</span>
+                      <span className="font-semibold">
+                        {formatRupiah(splitBillData?.items_subtotal || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Tax / Service</span>
+                      <span className="font-semibold">
+                        {formatRupiah(
+                          splitBillData?.tax_amount ?? payment.tax_amount ?? 0,
+                        )}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Cost</span>
+                    <span className="font-semibold">
+                      {formatRupiah(payment.total_cost)}
+                    </span>
+                  </div>
+                )}
+                {payment.type !== "split_bill" && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Per Person</span>
+                    <span className="font-semibold">
+                      {formatRupiah(payment.base_split)}
+                    </span>
+                  </div>
+                )}
                 <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600">Payment Info</span>
@@ -781,6 +1054,111 @@ export const PaymentPage = () => {
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
                 Payment Records
               </h2>
+              {payment.type === "split_bill" && splitBillData && (
+                <div className="mb-3 rounded-lg border border-gray-200 p-3">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                    Split Bill Breakdown
+                  </p>
+                  <div className="mb-2 flex items-center justify-between rounded-lg bg-gray-50 px-2.5 py-2">
+                    <span className="text-xs text-gray-600">Total Tax</span>
+                    <span className="text-xs font-semibold text-gray-800">
+                      {formatRupiah(payment.tax_amount || 0)}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {(splitBillData.items || []).map((item, index) => (
+                      <div
+                        key={`${item.name}-${index}`}
+                        className="rounded-lg bg-gray-50 p-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-gray-900 break-all">
+                            {item.name}
+                          </p>
+                          <span className="text-xs font-semibold text-gray-700 shrink-0">
+                            {formatRupiah(item.price || 0)}
+                          </span>
+                        </div>
+                        {getSplitBillItemAssignments(item).length > 0 ? (
+                          <div className="mt-1 space-y-1">
+                            {getSplitBillItemAssignments(item).map(
+                              (assignment) => (
+                                <p
+                                  key={`${assignment.participant_id}-${item.id || index}`}
+                                  className="text-xs text-gray-500 break-all"
+                                >
+                                  Assigned:{" "}
+                                  {assignment.display_name ||
+                                    splitParticipantLabelMap.get(
+                                      normalizeId(assignment.participant_id),
+                                    ) ||
+                                    `Participant ${assignment.participant_id}`}
+                                  {assignment.amount !== null
+                                    ? ` (${formatRupiah(assignment.amount)})`
+                                    : ""}
+                                </p>
+                              ),
+                            )}
+                          </div>
+                        ) : getSplitBillItemParticipantIds(item).length > 0 ? (
+                          <p className="mt-1 text-xs text-gray-500 break-all">
+                            Assigned:{" "}
+                            {getSplitBillItemParticipantIds(item)
+                              .map(
+                                (id) =>
+                                  splitParticipantLabelMap.get(normalizeId(id)) ||
+                                  `Participant ${id}`,
+                              )
+                              .join(", ")}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  {(splitBillData.participants || []).length > 0 && (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="py-1 pr-2">Participant</th>
+                            <th className="py-1 pr-2 text-right">Subtotal</th>
+                            <th className="py-1 pr-2 text-right">Tax</th>
+                            <th className="py-1 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {splitBillData.participants.map((entry, idx) => {
+                            const entryId = getSplitParticipantId(entry);
+                            const label =
+                              getSplitParticipantName(entry) ||
+                              splitParticipantLabelMap.get(String(entryId)) ||
+                              `Participant ${entryId || idx + 1}`;
+                            return (
+                              <tr
+                                key={`${entryId || "row"}-${idx}`}
+                                className="border-t border-gray-100"
+                              >
+                                <td className="py-1.5 pr-2 text-gray-800">
+                                  {label}
+                                </td>
+                                <td className="py-1.5 pr-2 text-right text-gray-700">
+                                  {formatRupiah(getSplitPreTaxSubtotal(entry))}
+                                </td>
+                                <td className="py-1.5 pr-2 text-right text-gray-700">
+                                  {formatRupiah(getSplitAllocatedTax(entry))}
+                                </td>
+                                <td className="py-1.5 text-right font-medium text-gray-900">
+                                  {formatRupiah(getSplitFinalTotal(entry))}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 {records.map((record) => (
                   <PaymentRecordRow
@@ -788,6 +1166,7 @@ export const PaymentPage = () => {
                     record={record}
                     settlement={perPersonStatusMap.get(record.participant_id)}
                     isCreator={isCreator}
+                    allowEdit={payment?.type !== "split_bill"}
                     onConfirm={handleConfirmPayment}
                     onEdit={(currentRecord) =>
                       openAdjustModal({
@@ -830,7 +1209,7 @@ export const PaymentPage = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Payment Mode
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => setPaymentType("total")}
@@ -853,6 +1232,17 @@ export const PaymentPage = () => {
               >
                 Fixed Per Person
               </button>
+              <button
+                type="button"
+                onClick={() => setPaymentType("split_bill")}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                  paymentType === "split_bill"
+                    ? "border-green-600 bg-green-50 text-green-700"
+                    : "border-gray-300 text-gray-600"
+                }`}
+              >
+                Split Bill
+              </button>
             </div>
           </div>
           {paymentType === "per_person" ? (
@@ -863,6 +1253,101 @@ export const PaymentPage = () => {
               value={perPersonAmount}
               onChange={(e) => setPerPersonAmount(e.target.value)}
             />
+          ) : paymentType === "split_bill" ? (
+            <div className="space-y-3">
+              <CurrencyInput
+                label="Tax / Service Amount"
+                placeholder="0"
+                value={splitBillTaxAmount}
+                onChange={(e) => setSplitBillTaxAmount(e.target.value ?? 0)}
+              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">
+                  Bill Items
+                </p>
+                {splitBillItems.map((item, index) => (
+                  <div
+                    key={`split-item-${index}`}
+                    className="rounded-lg border border-gray-200 p-3 space-y-2"
+                  >
+                    <input
+                      type="text"
+                      value={item.name}
+                      onChange={(e) =>
+                        updateSplitBillItem(index, { name: e.target.value })
+                      }
+                      placeholder="Item name (e.g. Court rent)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <CurrencyInput
+                      label="Item Price"
+                      value={item.price}
+                      onChange={(e) =>
+                        updateSplitBillItem(index, { price: e.target.value })
+                      }
+                    />
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Assign participants
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {participantOptions.map((participant) => {
+                          const normalizedAssignedIds = item.participant_ids
+                            .map((id) => normalizeId(id))
+                            .filter(Boolean);
+                          const checked = normalizedAssignedIds.some((id) =>
+                            participant.aliases.map((alias) => normalizeId(alias)).includes(id),
+                          );
+                          return (
+                            <label
+                              key={`${index}-${participant.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 px-2 py-1 text-xs text-gray-700"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const next = e.target.checked
+                                    ? [
+                                        ...normalizedAssignedIds.filter(
+                                          (id) =>
+                                            !participant.aliases
+                                              .map((alias) => normalizeId(alias))
+                                              .includes(id),
+                                        ),
+                                        normalizeId(participant.id),
+                                      ]
+                                    : item.participant_ids.filter(
+                                      (id) =>
+                                          !participant.aliases
+                                            .map((alias) => normalizeId(alias))
+                                            .includes(normalizeId(id)),
+                                      );
+                                  updateSplitBillItem(index, {
+                                    participant_ids: next,
+                                  });
+                                }}
+                              />
+                              {participant.label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeSplitBillItem(index)}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      Remove item
+                    </button>
+                  </div>
+                ))}
+                <Button type="button" variant="secondary" onClick={addSplitBillItem}>
+                  Add Item
+                </Button>
+              </div>
+            </div>
           ) : (
             <CurrencyInput
               label="Total Cost"
@@ -898,7 +1383,11 @@ export const PaymentPage = () => {
               loading={createPayment.isPending || updateEventStatus.isPending}
               disabled={
                 !paymentInfo ||
-                (paymentType === "per_person" ? !perPersonAmount : !totalCost)
+                (paymentType === "per_person"
+                  ? !perPersonAmount
+                  : paymentType === "split_bill"
+                    ? !isValidSplitBillItems(splitBillItems)
+                    : !totalCost)
               }
               className="flex-1"
             >
@@ -1049,7 +1538,7 @@ export const PaymentPage = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Payment Mode
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => setEditedPaymentType("total")}
@@ -1072,6 +1561,17 @@ export const PaymentPage = () => {
               >
                 Fixed Per Person
               </button>
+              <button
+                type="button"
+                onClick={() => setEditedPaymentType("split_bill")}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                  editedPaymentType === "split_bill"
+                    ? "border-green-600 bg-green-50 text-green-700"
+                    : "border-gray-300 text-gray-600"
+                }`}
+              >
+                Split Bill
+              </button>
             </div>
           </div>
 
@@ -1083,6 +1583,111 @@ export const PaymentPage = () => {
               value={editedPerPersonAmount}
               onChange={(e) => setEditedPerPersonAmount(e.target.value)}
             />
+          ) : editedPaymentType === "split_bill" ? (
+            <div className="space-y-3">
+              <CurrencyInput
+                label="Tax / Service Amount"
+                placeholder="0"
+                value={editedSplitBillTaxAmount}
+                onChange={(e) =>
+                  setEditedSplitBillTaxAmount(e.target.value ?? 0)
+                }
+              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">
+                  Bill Items
+                </p>
+                {editedSplitBillItems.map((item, index) => (
+                  <div
+                    key={`edit-split-item-${index}`}
+                    className="rounded-lg border border-gray-200 p-3 space-y-2"
+                  >
+                    <input
+                      type="text"
+                      value={item.name}
+                      onChange={(e) =>
+                        updateEditedSplitBillItem(index, {
+                          name: e.target.value,
+                        })
+                      }
+                      placeholder="Item name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <CurrencyInput
+                      label="Item Price"
+                      value={item.price}
+                      onChange={(e) =>
+                        updateEditedSplitBillItem(index, {
+                          price: e.target.value,
+                        })
+                      }
+                    />
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Assign participants
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {participantOptions.map((participant) => {
+                          const normalizedAssignedIds = item.participant_ids
+                            .map((id) => normalizeId(id))
+                            .filter(Boolean);
+                          const checked = normalizedAssignedIds.some((id) =>
+                            participant.aliases.map((alias) => normalizeId(alias)).includes(id),
+                          );
+                          return (
+                            <label
+                              key={`edit-${index}-${participant.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 px-2 py-1 text-xs text-gray-700"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const next = e.target.checked
+                                    ? [
+                                        ...normalizedAssignedIds.filter(
+                                          (id) =>
+                                            !participant.aliases
+                                              .map((alias) => normalizeId(alias))
+                                              .includes(id),
+                                        ),
+                                        normalizeId(participant.id),
+                                      ]
+                                    : item.participant_ids.filter(
+                                      (id) =>
+                                          !participant.aliases
+                                            .map((alias) => normalizeId(alias))
+                                            .includes(normalizeId(id)),
+                                      );
+                                  updateEditedSplitBillItem(index, {
+                                    participant_ids: next,
+                                  });
+                                }}
+                              />
+                              {participant.label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeEditedSplitBillItem(index)}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      Remove item
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={addEditedSplitBillItem}
+                >
+                  Add Item
+                </Button>
+              </div>
+            </div>
           ) : (
             <CurrencyInput
               label="Total Cost"
@@ -1113,7 +1718,9 @@ export const PaymentPage = () => {
               disabled={
                 editedPaymentType === "per_person"
                   ? !editedPerPersonAmount
-                  : !editedTotalCost
+                  : editedPaymentType === "split_bill"
+                    ? !isValidSplitBillItems(editedSplitBillItems)
+                    : !editedTotalCost
               }
               className="flex-1"
             >

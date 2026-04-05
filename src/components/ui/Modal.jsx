@@ -43,7 +43,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = "md" }) => {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
     >
       <div
-        className={`w-full ${sizeClasses[size]} bg-white rounded-xl shadow-xl animate-in fade-in zoom-in duration-200`}
+        className={`w-full ${sizeClasses[size]} max-h-[90vh] bg-white rounded-xl shadow-xl animate-in fade-in zoom-in duration-200 flex flex-col`}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -54,7 +54,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = "md" }) => {
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="p-4 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ export const PaymentRecordRow = ({
   record,
   settlement,
   isCreator,
+  allowEdit = true,
   onConfirm,
   onEdit,
   eventId,
@@ -69,7 +70,7 @@ export const PaymentRecordRow = ({
   const latestClaim = claims[0];
   const hasClaimHistory = claims.length > 0;
   const canNudge = Boolean(record.participant?.user_id);
-  const canEdit = isCreator && eventStatus === "payment_open";
+  const canEdit = allowEdit && isCreator && eventStatus === "payment_open";
   const needsAdditionalPayment =
     settlement?.action === "pay_more" || settlement?.action === "pay_full";
   const canCreatorConfirm =
