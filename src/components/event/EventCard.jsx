@@ -4,7 +4,7 @@ import { EventStatusBadge } from "./EventStatusBadge";
 import { Avatar } from "../ui/Avatar";
 import { formatDate } from "../../utils/format";
 
-export const EventCard = ({ event }) => {
+export const EventCard = ({ event, hideCreatorInfo = false }) => {
   // Status-specific rendering
   const renderStatusInfo = () => {
     switch (event.status) {
@@ -129,7 +129,7 @@ export const EventCard = ({ event }) => {
       )}
 
       {/* Creator info */}
-      {event.creator && (
+      {!hideCreatorInfo && !!(event.creator?.name || event.creator?.avatar_url) && (
         <div className="flex items-center gap-2 mb-3">
           <Avatar
             src={event.creator.avatar_url}

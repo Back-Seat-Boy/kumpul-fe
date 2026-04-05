@@ -8,6 +8,7 @@ import {
   CreateEventPage,
   EventDetailPage,
   PaymentPage,
+  UserEventsPage,
   ProfilePage,
   VenuesPage,
   AuthCallbackPage,
@@ -44,6 +45,7 @@ function App() {
         >
           <Route path="/" element={<HomePage />} />
           <Route path="/events/new" element={<CreateEventPage />} />
+          <Route path="/users/:userId/events" element={<UserEventsPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/settings/venues" element={<VenuesPage />} />
         </Route>

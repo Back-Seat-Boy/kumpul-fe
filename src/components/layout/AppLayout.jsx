@@ -82,6 +82,16 @@ export const AppLayout = () => {
                       <User className="w-4 h-4" />
                       Profile
                     </Link>
+                    {user?.id && (
+                      <Link
+                        to={`/users/${user.id}/events`}
+                        onClick={() => setIsProfileOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        My Events
+                      </Link>
+                    )}
                     <Link
                       to="/settings/venues"
                       onClick={() => setIsProfileOpen(false)}

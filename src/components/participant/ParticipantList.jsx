@@ -1,4 +1,5 @@
 import { Users, Crown, UserRound, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Avatar } from "../ui/Avatar";
 
 export const ParticipantList = ({ 
@@ -7,6 +8,7 @@ export const ParticipantList = ({
   isCreatorId, 
   isCreator = false,
   onRemove,
+  onParticipantClick,
   eventId,
   eventStatus,
 }) => {
@@ -42,9 +44,28 @@ export const ParticipantList = ({
                 size="sm"
               />
             )}
-            <span className={`text-sm text-gray-700 pr-1 ${participant.is_guest ? "italic" : ""}`}>
-              {participant.is_guest ? participant.guest_name : participant.user?.name}
-            </span>
+            {participant.is_guest ? (
+              <span className="text-sm text-gray-700 pr-1 italic">
+                {participant.guest_name}
+              </span>
+            ) : (
+              onParticipantClick ? (
+                <button
+                  type="button"
+                  onClick={() => onParticipantClick(participant)}
+                  className="text-sm text-gray-700 pr-1 hover:text-green-700 hover:underline"
+                >
+                  {participant.user?.name}
+                </button>
+              ) : (
+                <Link
+                  to={`/users/${participant.user_id}/events`}
+                  className="text-sm text-gray-700 pr-1 hover:text-green-700 hover:underline"
+                >
+                  {participant.user?.name}
+                </Link>
+              )
+            )}
             {isCreatorId && participant.user_id === isCreatorId && (
               <Crown className="w-3 h-3 text-amber-500" />
             )}

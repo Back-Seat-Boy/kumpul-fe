@@ -145,6 +145,7 @@ export const EventDetailPage = () => {
 
   const [isCloseVotingOpen, setIsCloseVotingOpen] = useState(false);
   const [isVoteLoginPromptOpen, setIsVoteLoginPromptOpen] = useState(false);
+  const [isProfileLoginPromptOpen, setIsProfileLoginPromptOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [isContactingVenue, setIsContactingVenue] = useState(false);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
@@ -210,6 +211,9 @@ export const EventDetailPage = () => {
   const isDeadlineReached = hasValidDeadline ? nowMs >= deadlineMs : false;
   const isDeadlineNear =
     hasValidDeadline && !isDeadlineReached && deadlineMs - nowMs <= 24 * 60 * 60 * 1000;
+  const isVotingPhase = event.status === "voting";
+  const isVotingDeadlineReached = isVotingPhase && isDeadlineReached;
+  const isVotingDeadlineNear = isVotingPhase && isDeadlineNear;
 
   const participantCount = participants?.length || 0;
   const playerCap = Number(event.player_cap || 0);
@@ -219,12 +223,10 @@ export const EventDetailPage = () => {
   const capNearThreshold = hasPlayerCap ? Math.max(1, Math.ceil(playerCap * 0.2)) : 0;
   const isCapNear = hasPlayerCap && !isCapReached && remainingSlots <= capNearThreshold;
 
-  const joinBlockedReason = isDeadlineReached
-    ? "Registration is closed because the deadline has passed."
-    : isCapReached
-      ? "Registration is closed because participant cap has been reached."
-      : "";
-  const voteBlockedReason = isDeadlineReached
+  const joinBlockedReason = isCapReached
+    ? "Registration is closed because participant cap has been reached."
+    : "";
+  const voteBlockedReason = isVotingDeadlineReached
     ? "Voting is closed because the deadline has passed."
     : isCapReached
       ? "Voting is closed because participant cap has been reached."
@@ -384,6 +386,17 @@ export const EventDetailPage = () => {
     navigate(`/events/${shareToken}/payment`);
   };
 
+  const handleOpenUserEvents = (userId) => {
+    if (!userId) return;
+
+    if (!sessionId) {
+      setIsProfileLoginPromptOpen(true);
+      return;
+    }
+
+    navigate(`/users/${userId}/events`);
+  };
+
   const chosenOption = options?.find((o) => o.id === event.chosen_option_id);
   const creatorParticipant = participants?.find(
     (p) => p.user_id === event.created_by,
@@ -503,10 +516,13 @@ export const EventDetailPage = () => {
 
       {/* Content */}
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {(isDeadlineNear || isCapNear || isDeadlineReached || isCapReached) && (
+        {(isVotingDeadlineNear ||
+          isCapNear ||
+          isVotingDeadlineReached ||
+          isCapReached) && (
           <div
             className={`rounded-xl border p-4 ${
-              isDeadlineReached || isCapReached
+              isVotingDeadlineReached || isCapReached
                 ? "border-red-200 bg-red-50"
                 : "border-amber-200 bg-amber-50"
             }`}
@@ -514,13 +530,13 @@ export const EventDetailPage = () => {
             <div className="flex items-start gap-2">
               <AlertCircle
                 className={`mt-0.5 h-4 w-4 shrink-0 ${
-                  isDeadlineReached || isCapReached
+                  isVotingDeadlineReached || isCapReached
                     ? "text-red-600"
                     : "text-amber-600"
                 }`}
               />
               <div className="space-y-1 text-sm">
-                {isDeadlineReached && (
+                {isVotingDeadlineReached && (
                   <p className="text-red-800">
                     Deadline reached on {formatDateTime(event.voting_deadline)}.
                   </p>
@@ -530,7 +546,7 @@ export const EventDetailPage = () => {
                     Participant cap reached ({participantCount}/{playerCap}).
                   </p>
                 )}
-                {isDeadlineNear && (
+                {isVotingDeadlineNear && (
                   <p className="text-amber-800">
                     Deadline is near: {formatDateTime(event.voting_deadline)}.
                   </p>
@@ -718,9 +734,13 @@ export const EventDetailPage = () => {
                   size="sm"
                 />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenUserEvents(event.created_by)}
+                    className="text-sm font-medium text-gray-900 hover:text-green-700 hover:underline"
+                  >
                     {creatorParticipant.user?.name}
-                  </p>
+                  </button>
                   <p className="text-xs text-amber-600">Organizer</p>
                 </div>
                 <Crown className="w-4 h-4 text-amber-500" />
@@ -734,6 +754,9 @@ export const EventDetailPage = () => {
               isCreatorId={event.created_by}
               isCreator={isCreator}
               onRemove={openRemoveParticipantModal}
+              onParticipantClick={(participant) =>
+                handleOpenUserEvents(participant.user_id)
+              }
               eventId={event.id}
               eventStatus={event.status}
               maxDisplay={showAllParticipants ? 100 : 5}
@@ -837,6 +860,30 @@ export const EventDetailPage = () => {
             <Button
               variant="secondary"
               onClick={() => setIsVoteLoginPromptOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => navigate("/login")} className="flex-1">
+              Go to Login
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isProfileLoginPromptOpen}
+        onClose={() => setIsProfileLoginPromptOpen(false)}
+        title="Login Required"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            You need to log in first to open participant profiles.
+          </p>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsProfileLoginPromptOpen(false)}
               className="flex-1"
             >
               Cancel

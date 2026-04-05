@@ -1,6 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 import { listEvents, getEvent, createEvent, updateEventStatus, setChosenOption } from "../api/events";
+import {
+  listUserCreatedEvents,
+  listUserParticipatedEvents,
+} from "../api/users";
 
 const DEFAULT_LIMIT = 10;
 
@@ -26,6 +30,36 @@ export const useEvent = (shareToken) => {
     queryKey: ["event", shareToken],
     queryFn: () => getEvent(shareToken),
     enabled: !!shareToken,
+    meta: {
+      onError: (error) => {
+        showError(getErrorMessage(error));
+      },
+    },
+  });
+};
+
+export const useUserCreatedEvents = (userId) => {
+  const showError = useToastStore((state) => state.showError);
+
+  return useQuery({
+    queryKey: ["users", userId, "events", "created"],
+    queryFn: () => listUserCreatedEvents(userId),
+    enabled: !!userId,
+    meta: {
+      onError: (error) => {
+        showError(getErrorMessage(error));
+      },
+    },
+  });
+};
+
+export const useUserParticipatedEvents = (userId) => {
+  const showError = useToastStore((state) => state.showError);
+
+  return useQuery({
+    queryKey: ["users", userId, "events", "participated"],
+    queryFn: () => listUserParticipatedEvents(userId),
+    enabled: !!userId,
     meta: {
       onError: (error) => {
         showError(getErrorMessage(error));

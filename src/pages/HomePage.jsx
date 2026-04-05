@@ -6,7 +6,6 @@ import { EventCard } from "../components/event/EventCard";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
 import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
 
 const EVENT_STATUSES = [
   { value: "", label: "All Status" },

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../../store/authStore";
@@ -85,6 +86,14 @@ export const ProfilePage = () => {
           >
             Save Changes
           </Button>
+          {user?.id && (
+            <Link
+              to={`/users/${user.id}/events`}
+              className="w-full inline-flex items-center justify-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium"
+            >
+              View My Events
+            </Link>
+          )}
         </form>
       </div>
     </div>

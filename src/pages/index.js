@@ -4,5 +4,6 @@ export { HomePage } from "./HomePage";
 export { CreateEventPage } from "./CreateEventPage";
 export { EventDetailPage } from "./EventDetailPage";
 export { PaymentPage } from "./PaymentPage";
+export { UserEventsPage } from "./UserEventsPage";
 export { ProfilePage } from "./settings/ProfilePage";
 export { VenuesPage } from "./settings/VenuesPage";
