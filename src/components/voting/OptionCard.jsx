@@ -61,21 +61,21 @@ export const OptionCard = ({
           : "border-gray-200 hover:border-gray-300"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-gray-900 break-words">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="flex-1 min-w-0 pr-1">
+          <h4 className="font-semibold text-gray-900 break-all">
             {option.venue?.name || "Venue"}
           </h4>
           {option.venue?.address && (
             <p className="text-sm text-gray-500 flex items-start gap-1 mt-0.5">
               <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span className="break-words">{option.venue.address}</span>
+              <span className="break-all">{option.venue.address}</span>
             </p>
           )}
         </div>
 
         {showVotes && (
-          <div className="text-right shrink-0">
+          <div className="text-right shrink-0 flex-none min-w-[44px]">
             <span className="text-lg font-semibold text-gray-900">
               {option.vote_count || 0}
             </span>

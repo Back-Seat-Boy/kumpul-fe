@@ -479,7 +479,7 @@ export const EventDetailPage = () => {
             <div>
               <h1 className="text-xl font-bold text-gray-900">{event.title}</h1>
               {event.description && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-1 break-all">
                   {event.description}
                 </p>
               )}
@@ -572,9 +572,9 @@ export const EventDetailPage = () => {
               {chosenOption.venue?.name}
             </h3>
             {chosenOption.venue?.address && (
-              <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {chosenOption.venue.address}
+              <p className="text-sm text-gray-500 flex items-start gap-1 mt-1 min-w-0">
+                <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span className="break-all">{chosenOption.venue.address}</span>
               </p>
             )}
             <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
