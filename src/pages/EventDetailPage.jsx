@@ -17,8 +17,15 @@ import {
   useEvent,
   useUpdateEventStatus,
   useSetChosenOption,
+  useUpdateEventSchedule,
+  useEventScheduleHistory,
 } from "../hooks/useEvents";
-import { useOptionsWithVoters, useVotedOptionIds } from "../hooks/useOptions";
+import {
+  useOptionsWithVoters,
+  useVotedOptionIds,
+  useUpdateOption,
+  useOptionEditHistory,
+} from "../hooks/useOptions";
 import { usePayment } from "../hooks/usePayments";
 import {
   useParticipants,
@@ -37,11 +44,14 @@ import { VoteTally } from "../components/voting/VoteTally";
 import { ParticipantList } from "../components/participant/ParticipantList";
 import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { Spinner } from "../components/ui/Spinner";
 import { formatDate, formatDateTime, formatRupiah } from "../utils/format";
 import { getVenueWhatsAppLink } from "../api/whatsapp";
 import { useToastStore, getErrorMessage } from "../utils/toast";
+import { useVenues } from "../hooks/useVenues";
+import { toRFC3339 } from "../utils/format";
 
 const getEmbeddableMapUrl = (mapsUrl) => {
   if (!mapsUrl) return null;
@@ -99,6 +109,18 @@ const addMinutesToGoogleCalendarDateTime = (
   return `${String(date.getFullYear()).padStart(4, "0")}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}${String(date.getMinutes()).padStart(2, "0")}00`;
 };
 
+const formatBackendUtcTimestamp = (timestamp) => {
+  if (!timestamp) return "-";
+
+  const match = timestamp.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?Z$/,
+  );
+  if (!match) return timestamp;
+
+  const [, year, month, day, hour, minute] = match;
+  return `${day}/${month}/${year} ${hour}:${minute}`;
+};
+
 const getGoogleCalendarUrl = ({ event, chosenOption, shareToken }) => {
   if (!event || !chosenOption?.date) return null;
 
@@ -147,6 +169,26 @@ export const EventDetailPage = () => {
   const [isVoteLoginPromptOpen, setIsVoteLoginPromptOpen] = useState(false);
   const [isJoinLoginPromptOpen, setIsJoinLoginPromptOpen] = useState(false);
   const [isProfileLoginPromptOpen, setIsProfileLoginPromptOpen] = useState(false);
+  const [isCancelEventOpen, setIsCancelEventOpen] = useState(false);
+  const [isEditVoteOptionOpen, setIsEditVoteOptionOpen] = useState(false);
+  const [isVoteOptionHistoryOpen, setIsVoteOptionHistoryOpen] = useState(false);
+  const [editingVoteOption, setEditingVoteOption] = useState(null);
+  const [editVoteOptionForm, setEditVoteOptionForm] = useState({
+    venueId: "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    note: "",
+  });
+  const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
+  const [isScheduleHistoryOpen, setIsScheduleHistoryOpen] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    venueId: "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    note: "",
+  });
   const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [isContactingVenue, setIsContactingVenue] = useState(false);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
@@ -164,6 +206,18 @@ export const EventDetailPage = () => {
     !!sessionId &&
       (event?.status === "payment_open" || event?.status === "completed"),
   );
+  const { data: venuesData } = useVenues();
+  const venues = venuesData?.venues || [];
+  const { data: scheduleHistory = [], isLoading: isLoadingScheduleHistory } =
+    useEventScheduleHistory(
+      event?.id,
+      isScheduleHistoryOpen,
+      shareToken,
+    );
+  const {
+    data: optionEditHistory = [],
+    isLoading: isLoadingOptionEditHistory,
+  } = useOptionEditHistory(event?.id, isVoteOptionHistoryOpen, shareToken);
 
   const votedOptionIds = useVotedOptionIds(options);
 
@@ -176,17 +230,23 @@ export const EventDetailPage = () => {
   const removeVote = useRemoveVote();
   const updateStatus = useUpdateEventStatus();
   const setChosenOption = useSetChosenOption();
+  const updateOption = useUpdateOption();
+  const updateEventSchedule = useUpdateEventSchedule();
 
   const isCreator = event && user && event.created_by === user.id;
   const hasJoined = participants?.some((p) => p.user_id === user?.id);
   const isJoinableStatus =
-    event?.status === "confirmed" ||
-    event?.status === "open" ||
-    event?.status === "payment_open";
+    (event?.status === "confirmed" ||
+      event?.status === "open" ||
+      event?.status === "payment_open");
   const canAddGuest =
     !!sessionId &&
     isJoinableStatus &&
     (isCreator || hasJoined);
+  const canCancelEvent =
+    isCreator &&
+    event?.status !== "completed" &&
+    event?.status !== "cancelled";
 
   if (isLoadingEvent) {
     return (
@@ -396,6 +456,119 @@ export const EventDetailPage = () => {
     navigate(`/events/${shareToken}/payment`);
   };
 
+  const normalizeTimeValue = (value) => {
+    if (!value) return "";
+    return value.length >= 5 ? value.slice(0, 5) : value;
+  };
+
+  const handleOpenEditSchedule = () => {
+    if (!chosenOption) return;
+
+    setScheduleForm({
+      venueId: chosenOption.venue?.id || chosenOption.venue_id || "",
+      date: chosenOption.date ? chosenOption.date.slice(0, 10) : "",
+      startTime: normalizeTimeValue(chosenOption.start_time),
+      endTime: normalizeTimeValue(chosenOption.end_time),
+      note: "",
+    });
+    setIsEditScheduleOpen(true);
+  };
+
+  const handleSubmitScheduleUpdate = async () => {
+    if (
+      !scheduleForm.venueId ||
+      !scheduleForm.date ||
+      !scheduleForm.startTime ||
+      !scheduleForm.endTime ||
+      !scheduleForm.note.trim()
+    ) {
+      showError("Please complete all fields, including the change note");
+      return;
+    }
+
+    try {
+      await updateEventSchedule.mutateAsync({
+        eventId: event.id,
+        shareToken,
+        data: {
+          venue_id: scheduleForm.venueId,
+          date: toRFC3339(`${scheduleForm.date}T00:00`),
+          start_time: scheduleForm.startTime,
+          end_time: scheduleForm.endTime,
+          note: scheduleForm.note.trim(),
+        },
+      });
+      setIsEditScheduleOpen(false);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
+  const handleOpenEditVoteOption = (option) => {
+    if (!option) return;
+
+    setEditingVoteOption(option);
+    setEditVoteOptionForm({
+      venueId: option.venue?.id || option.venue_id || "",
+      date: option.date ? option.date.slice(0, 10) : "",
+      startTime: normalizeTimeValue(option.start_time),
+      endTime: normalizeTimeValue(option.end_time),
+      note: "",
+    });
+    setIsEditVoteOptionOpen(true);
+  };
+
+  const handleSubmitVoteOptionUpdate = async () => {
+    if (
+      !editingVoteOption?.id ||
+      !editVoteOptionForm.venueId ||
+      !editVoteOptionForm.date ||
+      !editVoteOptionForm.startTime ||
+      !editVoteOptionForm.endTime
+    ) {
+      showError("Please complete venue, date, and time fields");
+      return;
+    }
+
+    try {
+      const payload = {
+        venue_id: editVoteOptionForm.venueId,
+        date: toRFC3339(`${editVoteOptionForm.date}T00:00`),
+        start_time: editVoteOptionForm.startTime,
+        end_time: editVoteOptionForm.endTime,
+      };
+
+      if (editVoteOptionForm.note.trim()) {
+        payload.note = editVoteOptionForm.note.trim();
+      }
+
+      await updateOption.mutateAsync({
+        eventId: event.id,
+        optionId: editingVoteOption.id,
+        shareToken,
+        data: payload,
+      });
+
+      setIsEditVoteOptionOpen(false);
+      setEditingVoteOption(null);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
+  const handleCancelEvent = async () => {
+    try {
+      await updateStatus.mutateAsync({
+        eventId: event.id,
+        status: "cancelled",
+        shareToken,
+      });
+      setIsCancelEventOpen(false);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
   const handleOpenUserEvents = (userId) => {
     if (!userId) return;
 
@@ -422,6 +595,41 @@ export const EventDetailPage = () => {
   const removeParticipantName = participantToRemove?.is_guest
     ? participantToRemove?.guest_name
     : participantToRemove?.user?.name;
+  const scheduleHasCoreChanges = Boolean(
+    chosenOption &&
+      (scheduleForm.venueId !==
+        (chosenOption.venue?.id || chosenOption.venue_id || "") ||
+        scheduleForm.date !== (chosenOption.date ? chosenOption.date.slice(0, 10) : "") ||
+        scheduleForm.startTime !== normalizeTimeValue(chosenOption.start_time) ||
+        scheduleForm.endTime !== normalizeTimeValue(chosenOption.end_time)),
+  );
+  const canSubmitScheduleUpdate = Boolean(
+    scheduleForm.venueId &&
+      scheduleForm.date &&
+      scheduleForm.startTime &&
+      scheduleForm.endTime &&
+      scheduleForm.note.trim() &&
+      scheduleHasCoreChanges,
+  );
+  const voteOptionHasChanges = Boolean(
+    editingVoteOption &&
+      (editVoteOptionForm.venueId !==
+        (editingVoteOption.venue?.id || editingVoteOption.venue_id || "") ||
+        editVoteOptionForm.date !==
+          (editingVoteOption.date ? editingVoteOption.date.slice(0, 10) : "") ||
+        editVoteOptionForm.startTime !==
+          normalizeTimeValue(editingVoteOption.start_time) ||
+        editVoteOptionForm.endTime !==
+          normalizeTimeValue(editingVoteOption.end_time) ||
+        editVoteOptionForm.note.trim().length > 0),
+  );
+  const canSubmitVoteOptionUpdate = Boolean(
+    editVoteOptionForm.venueId &&
+      editVoteOptionForm.date &&
+      editVoteOptionForm.startTime &&
+      editVoteOptionForm.endTime &&
+      voteOptionHasChanges,
+  );
 
   // Helper to get action text
   const getActionText = (action, amount) => {
@@ -470,9 +678,9 @@ export const EventDetailPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen pb-20">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-4">
+      <div className="bg-white/85 backdrop-blur border-b border-gray-200 px-4 py-4">
         <div className="max-w-2xl mx-auto">
           <Link
             to={sessionId ? "/" : "#"}
@@ -523,7 +731,7 @@ export const EventDetailPage = () => {
       </div>
 
       {/* Content */}
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
         {(isVotingDeadlineNear ||
           isCapNear ||
           isVotingDeadlineReached ||
@@ -636,52 +844,78 @@ export const EventDetailPage = () => {
 
         {/* Voting Section */}
         {event.status === "voting" && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="surface-card p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
-                Vote for Date & Venue
+                Vote for Date & Location
               </h2>
-              {event.voting_deadline && (
-                <span className="text-xs text-gray-400">
-                  Ends {formatDateTime(event.voting_deadline)}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {event.voting_deadline && (
+                  <span className="text-xs text-gray-400">
+                    Ends {formatDateTime(event.voting_deadline)}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
               {options?.map((option) => (
-                <OptionCard
-                  key={option.id}
-                  option={option}
-                  hasVoted={votedOptionIds.includes(option.id)}
-                  onVote={() => handleVote(option.id)}
-                  onUnvote={() => handleUnvote(option.id)}
-                  onVoterClick={(voter) => handleOpenUserEvents(voter.user_id)}
-                  voteDisabled={isVoteBlocked}
-                  voteDisabledReason={voteBlockedReason}
-                  isVoting={castVote.isPending || removeVote.isPending}
-                />
+                <div key={option.id} className="space-y-2">
+                  <OptionCard
+                    option={option}
+                    hasVoted={votedOptionIds.includes(option.id)}
+                    onVote={() => handleVote(option.id)}
+                    onUnvote={() => handleUnvote(option.id)}
+                    onVoterClick={(voter) => handleOpenUserEvents(voter.user_id)}
+                    voteDisabled={isVoteBlocked}
+                    voteDisabledReason={voteBlockedReason}
+                    isVoting={castVote.isPending || removeVote.isPending}
+                  />
+                  {isCreator && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleOpenEditVoteOption(option)}
+                      className="w-full"
+                    >
+                      Edit Option
+                    </Button>
+                  )}
+                </div>
               ))}
             </div>
 
             {isCreator && (
-              <Button
-                variant="primary"
-                onClick={() => setIsCloseVotingOpen(true)}
-                className="w-full mt-4"
-              >
-                Close Voting
-              </Button>
+              <div className="space-y-2 mt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => setIsVoteOptionHistoryOpen(true)}
+                  className="w-full"
+                >
+                  View Vote Edit History
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => setIsCloseVotingOpen(true)}
+                  className="w-full"
+                >
+                  Close Voting
+                </Button>
+              </div>
             )}
           </div>
         )}
 
         {/* Creator Actions for Confirmed */}
         {isCreator && event.status === "confirmed" && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="surface-card p-4">
             <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
               Next Steps
             </h2>
+            <p className="text-sm text-gray-600 mb-3">
+              If this event still needs confirmation from the place, contact the
+              venue first. Open RSVP when you are ready to move this event to
+              the next status.
+            </p>
             <div className="flex gap-3">
               <Button
                 variant="secondary"
@@ -690,7 +924,7 @@ export const EventDetailPage = () => {
                 className="flex-1"
               >
                 <ExternalLink className="w-4 h-4" />
-                Contact Venue
+                Contact Location
               </Button>
               <Button
                 variant="primary"
@@ -707,12 +941,28 @@ export const EventDetailPage = () => {
                 Open RSVP
               </Button>
             </div>
+            <div className="flex gap-3 mt-3">
+              <Button
+                variant="secondary"
+                onClick={handleOpenEditSchedule}
+                className="flex-1"
+              >
+                Edit Location & Time
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setIsScheduleHistoryOpen(true)}
+                className="flex-1"
+              >
+                View Edit Event History
+              </Button>
+            </div>
           </div>
         )}
 
         {/* Participants */}
         {event.status !== "voting" && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="surface-card p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
                 Participants
@@ -788,9 +1038,28 @@ export const EventDetailPage = () => {
           </div>
         )}
 
+        {canCancelEvent && (
+          <div className="surface-card p-4">
+            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+              Event Management
+            </h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Need to stop this event? You can cancel it so no one can vote,
+              join, or continue payment actions.
+            </p>
+            <Button
+              variant="danger"
+              onClick={() => setIsCancelEventOpen(true)}
+              className="w-full"
+            >
+              Cancel Event
+            </Button>
+          </div>
+        )}
+
         {/* Payment Section */}
         {(event.status === "payment_open" || event.status === "completed") && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="surface-card p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
                 Payment
@@ -808,17 +1077,26 @@ export const EventDetailPage = () => {
 
         {/* Creator: Open Payment */}
         {isCreator && event.status === "open" && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="surface-card p-4">
             <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
               Ready to collect payment?
             </h2>
-            <Button
-              variant="primary"
-              onClick={handleOpenPayment}
-              className="w-full"
-            >
-              Open Payment
-            </Button>
+            <div className="space-y-2">
+              <Button
+                variant="primary"
+                onClick={handleOpenPayment}
+                className="w-full"
+              >
+                Open Payment
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setIsScheduleHistoryOpen(true)}
+                className="w-full"
+              >
+                View Edit Event History
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -925,6 +1203,327 @@ export const EventDetailPage = () => {
               Go to Login
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isCancelEventOpen}
+        onClose={() => setIsCancelEventOpen(false)}
+        title="Cancel Event"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            This will set the event status to cancelled. Participants can still
+            view the event, but voting, joining, and payment actions will stop.
+          </p>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsCancelEventOpen(false)}
+              className="flex-1"
+            >
+              Keep Event
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleCancelEvent}
+              loading={updateStatus.isPending}
+              className="flex-1"
+            >
+              Yes, Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditVoteOptionOpen}
+        onClose={() => {
+          setIsEditVoteOptionOpen(false);
+          setEditingVoteOption(null);
+        }}
+        title="Edit Vote Option"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Update this option while event status is still voting.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Location <span className="text-red-500 ml-1">*</span>
+            </label>
+            <select
+              value={editVoteOptionForm.venueId}
+              onChange={(e) =>
+                setEditVoteOptionForm((prev) => ({
+                  ...prev,
+                  venueId: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              <option value="">Select location</option>
+              {venues.map((venue) => (
+                <option key={venue.id} value={venue.id}>
+                  {venue.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Input
+            label="Date"
+            type="date"
+            required
+            value={editVoteOptionForm.date}
+            onChange={(e) =>
+              setEditVoteOptionForm((prev) => ({ ...prev, date: e.target.value }))
+            }
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Start Time"
+              type="time"
+              required
+              value={editVoteOptionForm.startTime}
+              onChange={(e) =>
+                setEditVoteOptionForm((prev) => ({
+                  ...prev,
+                  startTime: e.target.value,
+                }))
+              }
+            />
+            <Input
+              label="End Time"
+              type="time"
+              required
+              value={editVoteOptionForm.endTime}
+              onChange={(e) =>
+                setEditVoteOptionForm((prev) => ({
+                  ...prev,
+                  endTime: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          <textarea
+            value={editVoteOptionForm.note}
+            onChange={(e) =>
+              setEditVoteOptionForm((prev) => ({ ...prev, note: e.target.value }))
+            }
+            rows={3}
+            placeholder="Optional note for edit history"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+          />
+          {!voteOptionHasChanges && (
+            <p className="text-xs text-gray-500">
+              Make a change first before saving.
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsEditVoteOptionOpen(false);
+                setEditingVoteOption(null);
+              }}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitVoteOptionUpdate}
+              disabled={!canSubmitVoteOptionUpdate}
+              loading={updateOption.isPending}
+              className="flex-1"
+            >
+              Save Option
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isVoteOptionHistoryOpen}
+        onClose={() => setIsVoteOptionHistoryOpen(false)}
+        title="Vote Option Edit History"
+      >
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {isLoadingOptionEditHistory ? (
+            <Spinner />
+          ) : optionEditHistory.length === 0 ? (
+            <p className="text-sm text-gray-500">No vote option edits yet.</p>
+          ) : (
+            optionEditHistory.map((log) => (
+              <div key={log.id} className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs text-gray-400">
+                  {formatBackendUtcTimestamp(log.created_at)}
+                </p>
+                <p className="text-sm font-medium text-gray-900 mt-1">
+                  {log.editor?.name || "Organizer"}
+                </p>
+                {log.note && (
+                  <p className="text-sm text-gray-600 mt-1">{log.note}</p>
+                )}
+                <div className="mt-2 text-xs text-gray-500 space-y-1">
+                  <p>
+                    From: {log.old_venue?.name || "-"} · {formatDate(log.old_date)} ·{" "}
+                    {normalizeTimeValue(log.old_start_time)}-
+                    {normalizeTimeValue(log.old_end_time)}
+                  </p>
+                  <p>
+                    To: {log.new_venue?.name || "-"} · {formatDate(log.new_date)} ·{" "}
+                    {normalizeTimeValue(log.new_start_time)}-
+                    {normalizeTimeValue(log.new_end_time)}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditScheduleOpen}
+        onClose={() => setIsEditScheduleOpen(false)}
+        title="Edit Event Schedule"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Update confirmed location/date/time and add a note. This note is saved
+            in schedule edit history.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Location <span className="text-red-500 ml-1">*</span>
+            </label>
+            <select
+              value={scheduleForm.venueId}
+              onChange={(e) =>
+                setScheduleForm((prev) => ({ ...prev, venueId: e.target.value }))
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              <option value="">Select location</option>
+              {venues.map((venue) => (
+                <option key={venue.id} value={venue.id}>
+                  {venue.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Date"
+              type="date"
+              required
+              value={scheduleForm.date}
+              onChange={(e) =>
+                setScheduleForm((prev) => ({ ...prev, date: e.target.value }))
+              }
+            />
+            <Input
+              label="Start Time"
+              type="time"
+              required
+              value={scheduleForm.startTime}
+              onChange={(e) =>
+                setScheduleForm((prev) => ({ ...prev, startTime: e.target.value }))
+              }
+            />
+          </div>
+
+          <Input
+            label="End Time"
+            type="time"
+            required
+            value={scheduleForm.endTime}
+            onChange={(e) =>
+              setScheduleForm((prev) => ({ ...prev, endTime: e.target.value }))
+            }
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Change Note <span className="text-red-500 ml-1">*</span>
+            </label>
+            <textarea
+            value={scheduleForm.note}
+            onChange={(e) =>
+              setScheduleForm((prev) => ({ ...prev, note: e.target.value }))
+            }
+            rows={3}
+            placeholder="Why this schedule changed..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+          />
+          </div>
+          {!scheduleHasCoreChanges && (
+            <p className="text-xs text-gray-500">
+              Change location/date/time first before saving.
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsEditScheduleOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitScheduleUpdate}
+              disabled={!canSubmitScheduleUpdate}
+              loading={updateEventSchedule.isPending}
+              className="flex-1"
+            >
+              Save Schedule
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isScheduleHistoryOpen}
+        onClose={() => setIsScheduleHistoryOpen(false)}
+        title="Schedule Edit History"
+      >
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {isLoadingScheduleHistory ? (
+            <Spinner />
+          ) : scheduleHistory.length === 0 ? (
+            <p className="text-sm text-gray-500">No schedule edits yet.</p>
+          ) : (
+            scheduleHistory.map((log) => (
+              <div key={log.id} className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs text-gray-400">
+                  {formatBackendUtcTimestamp(log.created_at)}
+                </p>
+                <p className="text-sm font-medium text-gray-900 mt-1">
+                  {log.editor?.name || "Organizer"}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">{log.note}</p>
+                <div className="mt-2 text-xs text-gray-500 space-y-1">
+                  <p>
+                    From: {log.old_venue?.name || "-"} · {formatDate(log.old_date)} ·{" "}
+                    {normalizeTimeValue(log.old_start_time)}-
+                    {normalizeTimeValue(log.old_end_time)}
+                  </p>
+                  <p>
+                    To: {log.new_venue?.name || "-"} · {formatDate(log.new_date)} ·{" "}
+                    {normalizeTimeValue(log.new_start_time)}-
+                    {normalizeTimeValue(log.new_end_time)}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Modal>
 

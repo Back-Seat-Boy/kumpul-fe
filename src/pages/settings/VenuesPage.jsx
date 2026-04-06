@@ -55,7 +55,7 @@ export const VenuesPage = () => {
   };
 
   const handleDelete = async (venueId) => {
-    if (confirm("Are you sure you want to delete this venue?")) {
+    if (confirm("Are you sure you want to delete this location?")) {
       await deleteVenue.mutateAsync(venueId);
     }
   };
@@ -72,10 +72,10 @@ export const VenuesPage = () => {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-gray-900">Venues</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Locations</h1>
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="w-4 h-4" />
-          Add Venue
+          Add Location
         </Button>
       </div>
 
@@ -85,7 +85,7 @@ export const VenuesPage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search venues..."
+              placeholder="Search locations..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -108,7 +108,7 @@ export const VenuesPage = () => {
 
       {!isLoading && (
         <p className="text-sm text-gray-500 mb-4">
-          {total} venue{total !== 1 ? "s" : ""} found
+          {total} location{total !== 1 ? "s" : ""} found
           {search && ` for "${search}"`}
         </p>
       )}
@@ -164,13 +164,13 @@ export const VenuesPage = () => {
           description={
             search
               ? "Try adjusting your search terms."
-              : "Add venues you frequently book for your events."
+              : "Add locations you frequently use for your events."
           }
           action={
             !search ? (
               <Button onClick={() => setIsModalOpen(true)}>
                 <Plus className="w-4 h-4" />
-                Add Venue
+                Add Location
               </Button>
             ) : null
           }
@@ -222,11 +222,11 @@ const VenueModal = ({ isOpen, onClose, venue, onSubmit, isLoading }) => {
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={venue ? "Edit Venue" : "Add New Venue"}
+      title={venue ? "Edit Location" : "Add New Location"}
     >
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         <Input
-          label="Venue Name"
+          label="Location Name"
           required
           error={errors.name?.message}
           {...register("name", { required: "Name is required" })}
@@ -251,16 +251,19 @@ const VenueModal = ({ isOpen, onClose, venue, onSubmit, isLoading }) => {
 
         <div className="grid grid-cols-2 gap-4">
           <CurrencyInput
-            label="Price per Hour"
+            label="Price per Hour (Sports only)"
             value={pricePerHour}
             onChange={(e) => setValue("price_per_hour", e.target.value)}
           />
           <Input
-            label="Court Count"
+            label="Court Count (Sports only)"
             type="number"
             {...register("court_count")}
           />
         </div>
+        <p className="text-xs text-gray-500 -mt-2">
+          Price per hour and court count are only used for sporting venues.
+        </p>
 
         <Textarea
           label="Notes"
@@ -273,7 +276,7 @@ const VenueModal = ({ isOpen, onClose, venue, onSubmit, isLoading }) => {
             Cancel
           </Button>
           <Button type="submit" loading={isLoading} className="flex-1">
-            {venue ? "Save Changes" : "Add Venue"}
+            {venue ? "Save Changes" : "Add Location"}
           </Button>
         </div>
       </form>

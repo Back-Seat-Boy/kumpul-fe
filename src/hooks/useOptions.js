@@ -1,7 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 import { useAuthStore } from "../store/authStore";
-import { listOptions, listOptionsWithVoters, createOption, deleteOption } from "../api/options";
+import {
+  listOptions,
+  listOptionsWithVoters,
+  listOptionEditHistory,
+  createOption,
+  updateOption,
+  deleteOption,
+} from "../api/options";
 
 // Hook for fetching basic options - includes has_voted field for authenticated users
 export const useOptions = (shareToken) => {
@@ -80,6 +87,43 @@ export const useDeleteOption = () => {
     },
     onError: (error) => {
       showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useUpdateOption = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, optionId, data, shareToken }) =>
+      updateOption(eventId, optionId, data),
+    onSuccess: (_, { shareToken }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["event", shareToken, "options", "with-voters"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["event", shareToken, "options"] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      showSuccess("Option updated successfully");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useOptionEditHistory = (eventId, enabled = true, shareToken) => {
+  const showError = useToastStore((state) => state.showError);
+
+  return useQuery({
+    queryKey: ["event", shareToken || eventId, "options", "history"],
+    queryFn: () => listOptionEditHistory(eventId),
+    enabled: !!eventId && enabled,
+    meta: {
+      onError: (error) => {
+        showError(getErrorMessage(error));
+      },
     },
   });
 };

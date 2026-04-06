@@ -19,11 +19,21 @@ export const listOptionsWithVoters = async (shareToken) => {
   return res.data.data;
 };
 
+export const listOptionEditHistory = async (eventId) => {
+  const res = await api.get(`/api/events/${eventId}/options/history/`);
+  return res.data.data;
+};
+
 // Note: Creating individual options is still supported but
 // typically options are created with the event in a single request
 export const createOption = async (eventId, data) => {
   const res = await api.post(`/api/events/${eventId}/options/`, data);
   return res.data.data;
+};
+
+export const updateOption = async (eventId, optionId, data) => {
+  const res = await api.patch(`/api/events/${eventId}/options/${optionId}/`, data);
+  return res.data;
 };
 
 export const deleteOption = async (eventId, optionId) => {

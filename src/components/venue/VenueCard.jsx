@@ -58,13 +58,13 @@ export const VenueCard = ({ venue, onEdit, onDelete, isOwner }) => {
         {venue.price_per_hour > 0 && (
           <span className="flex items-center gap-1">
             <DollarSign className="w-3.5 h-3.5" />
-            {formatRupiah(venue.price_per_hour)}/hour
+            {formatRupiah(venue.price_per_hour)}/hour (sports)
           </span>
         )}
         {venue.court_count > 0 && (
           <span className="flex items-center gap-1">
             <LayoutGrid className="w-3.5 h-3.5" />
-            {venue.court_count} courts
+            {venue.court_count} courts (sports)
           </span>
         )}
         {venue.maps_url && (

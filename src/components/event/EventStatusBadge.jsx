@@ -5,6 +5,7 @@ const statusLabels = {
   confirmed: "Confirmed",
   open: "Open",
   payment_open: "Payment",
+  cancelled: "Cancelled",
   completed: "Completed",
 };
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Plus, X } from "lucide-react";
@@ -14,14 +14,16 @@ import { useToastStore, getErrorMessage } from "../utils/toast";
 
 export const CreateEventPage = () => {
   const navigate = useNavigate();
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: {
       visibility: "invite_only",
+      skip_voting: false,
     },
   });
   const [options, setOptions] = useState([{ venueId: "", date: "", startTime: "", endTime: "" }]);
   const [isVenueModalOpen, setIsVenueModalOpen] = useState(false);
   const showError = useToastStore((state) => state.showError);
+  const skipVoting = watch("skip_voting");
 
   const { data } = useVenues();
   const venues = data?.venues || [];
@@ -35,10 +37,17 @@ export const CreateEventPage = () => {
   ];
 
   const addOption = () => {
+    if (skipVoting) return;
     if (options.length < 3) {
       setOptions([...options, { venueId: "", date: "", startTime: "", endTime: "" }]);
     }
   };
+
+  useEffect(() => {
+    if (skipVoting && options.length > 1) {
+      setOptions((prev) => [prev[0]]);
+    }
+  }, [skipVoting, options.length]);
 
   const removeOption = (index) => {
     setOptions(options.filter((_, i) => i !== index));
@@ -69,14 +78,19 @@ export const CreateEventPage = () => {
         showError("Please add at least one venue option");
         return;
       }
+      if (data.skip_voting && formattedOptions.length !== 1) {
+        showError("Skip voting requires exactly one location option");
+        return;
+      }
 
       // Create event with options in single request
       const event = await createEvent.mutateAsync({
         title: data.title,
         description: data.description,
         visibility: data.visibility || "invite_only",
-        player_cap: data.player_cap ? parseInt(data.player_cap) : null,
-        voting_deadline: votingDeadline,
+        skip_voting: !!data.skip_voting,
+        player_cap: data.player_cap ? parseInt(data.player_cap, 10) : null,
+        voting_deadline: data.skip_voting ? null : votingDeadline,
         options: formattedOptions,
       });
 
@@ -131,6 +145,17 @@ export const CreateEventPage = () => {
             })}
           />
 
+          <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              {...register("skip_voting")}
+            />
+            <span className="text-sm text-gray-700">
+              Skip voting and confirm this event directly (single location option only)
+            </span>
+          </label>
+
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Player Cap"
@@ -138,12 +163,17 @@ export const CreateEventPage = () => {
               placeholder="Optional"
               {...register("player_cap")}
             />
-
-            <Input
-              label="Voting Deadline"
-              type="datetime-local"
-              {...register("voting_deadline")}
-            />
+            {skipVoting ? (
+              <div className="rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500">
+                Voting deadline is disabled because this event skips voting.
+              </div>
+            ) : (
+              <Input
+                label="Voting Deadline"
+                type="datetime-local"
+                {...register("voting_deadline")}
+              />
+            )}
           </div>
         </div>
 
@@ -151,7 +181,7 @@ export const CreateEventPage = () => {
         <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
-              Venue Options
+              Location Options
             </h2>
             <span className="text-xs text-gray-400">
               {options.length} / 3
@@ -180,7 +210,7 @@ export const CreateEventPage = () => {
                 </div>
 
                 <Select
-                  label="Venue"
+                  label="Location"
                   required
                   options={venueOptions}
                   value={option.venueId}
@@ -213,7 +243,7 @@ export const CreateEventPage = () => {
             ))}
           </div>
 
-          {options.length < 3 && (
+          {!skipVoting && options.length < 3 && (
             <Button
               type="button"
               variant="secondary"
@@ -230,7 +260,7 @@ export const CreateEventPage = () => {
             onClick={() => setIsVenueModalOpen(true)}
             className="text-sm text-green-600 hover:text-green-700 font-medium"
           >
-            + Add new venue
+            + Add new location
           </button>
         </div>
 
@@ -271,10 +301,10 @@ const AddVenueModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Add New Venue">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Add New Location">
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         <Input
-          label="Venue Name"
+          label="Location Name"
           required
           error={errors.name?.message}
           {...register("name", { required: "Name is required" })}
@@ -299,16 +329,19 @@ const AddVenueModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Price per Hour"
+            label="Price per Hour (Sports only)"
             type="number"
             {...register("price_per_hour")}
           />
           <Input
-            label="Court Count"
+            label="Court Count (Sports only)"
             type="number"
             {...register("court_count")}
           />
         </div>
+        <p className="text-xs text-gray-500 -mt-2">
+          Price per hour and court count are only used for sporting venues.
+        </p>
 
         <Textarea
           label="Notes"
@@ -321,7 +354,7 @@ const AddVenueModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
             Cancel
           </Button>
           <Button type="submit" loading={isLoading} className="flex-1">
-            Save Venue
+            Save Location
           </Button>
         </div>
       </form>

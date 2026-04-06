@@ -607,8 +607,8 @@ export const PaymentPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="bg-white border-b border-gray-200 px-4 py-4">
+    <div className="min-h-screen pb-20">
+      <div className="bg-white/85 backdrop-blur border-b border-gray-200 px-4 py-4">
         <div className="max-w-2xl mx-auto">
           <Link
             to={`/events/${shareToken}`}
@@ -621,9 +621,9 @@ export const PaymentPage = () => {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
         {!sessionId ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+          <div className="surface-card p-6 text-center">
             <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
             <h2 className="text-lg font-semibold text-gray-900 mb-1">
               Login Required
@@ -638,7 +638,7 @@ export const PaymentPage = () => {
           </div>
         ) : !payment ? (
           isCreator ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+            <div className="surface-card p-6 text-center">
               <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <h2 className="text-lg font-semibold text-gray-900 mb-1">
                 Payment Not Opened
@@ -660,7 +660,7 @@ export const PaymentPage = () => {
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+            <div className="surface-card p-6 text-center">
               <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <h2 className="text-lg font-semibold text-gray-900 mb-1">
                 Payment Not Opened Yet
@@ -674,7 +674,7 @@ export const PaymentPage = () => {
           <>
             {/* Financial Summary */}
             {summary && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="surface-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
@@ -798,7 +798,7 @@ export const PaymentPage = () => {
             )}
 
             {isCreator && unsettledPeople.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="surface-card p-4">
                 <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
                   Needs Follow-up
                 </h2>
@@ -858,7 +858,7 @@ export const PaymentPage = () => {
             )}
 
             {/* Payment Details */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="surface-card p-4">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
                 Payment Info
               </h2>
@@ -965,7 +965,7 @@ export const PaymentPage = () => {
 
             {/* User's Payment Action - only when payment_open */}
             {canUserSubmitPayment && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="surface-card p-4">
                 <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
                   {userSettlement?.action === "pay_more"
                     ? "Submit Additional Payment"
@@ -1058,7 +1058,7 @@ export const PaymentPage = () => {
               )}
 
             {/* Payment Records */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="surface-card p-4">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
                 Payment Records
               </h2>

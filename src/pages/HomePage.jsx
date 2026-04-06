@@ -15,6 +15,7 @@ const EVENT_STATUSES = [
   { value: "confirmed", label: "Confirmed" },
   { value: "open", label: "Open" },
   { value: "payment_open", label: "Payment" },
+  { value: "cancelled", label: "Cancelled" },
   { value: "completed", label: "Completed" },
 ];
 
@@ -102,21 +103,30 @@ export const HomePage = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Events</h1>
-        <button
-          onClick={handleNewEventClick}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Event
-        </button>
+      <div className="surface-card px-4 py-4 bg-gradient-to-br from-white to-green-50/60">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+              Events
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Discover sessions, vote fast, and keep everyone on track.
+            </p>
+          </div>
+          <button
+            onClick={handleNewEventClick}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            New Event
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+      <div className="surface-card p-4 space-y-3">
         {/* Search */}
         <form onSubmit={handleSearch} className="flex gap-2">
           <div className="relative flex-1">
@@ -191,7 +201,7 @@ export const HomePage = () => {
 
       {/* Results count */}
       {!isLoading && (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 px-1">
           {total} event{total !== 1 ? "s" : ""} found
           {search && ` for "${search}"`}
           {status && ` in ${EVENT_STATUSES.find(s => s.value === status)?.label}`}

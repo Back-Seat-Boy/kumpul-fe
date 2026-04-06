@@ -109,7 +109,7 @@ export const EventCard = ({ event, hideCreatorInfo = false }) => {
   return (
     <Link
       to={`/events/${event.share_token}`}
-      className="block bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow"
+      className="block surface-card surface-card-hover p-4"
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <h3 className="font-semibold text-gray-900 line-clamp-1">{event.title}</h3>

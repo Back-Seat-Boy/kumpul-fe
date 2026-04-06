@@ -7,7 +7,7 @@ import { logout } from "../../api/auth";
 
 const navItems = [
   { path: "/", label: "Events", icon: Calendar },
-  { path: "/settings/venues", label: "Venues", icon: MapPin },
+  { path: "/settings/venues", label: "Locations", icon: MapPin },
 ];
 
 export const AppLayout = () => {
@@ -32,10 +32,10 @@ export const AppLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Top Navigation Bar */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="px-4 h-14 flex items-center justify-between">
+      <header className="bg-white/85 backdrop-blur border-b border-gray-200 sticky top-0 z-30">
+        <div className="px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -43,7 +43,10 @@ export const AppLayout = () => {
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <Link to="/" className="text-lg font-bold text-green-600">
+            <Link
+              to="/"
+              className="text-lg font-bold text-green-700 tracking-tight"
+            >
               Kumpul
             </Link>
           </div>
@@ -53,7 +56,7 @@ export const AppLayout = () => {
               (isLoggedIn ? (
                 <Link
                   to="/events/new"
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                  className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors shadow-sm"
                 >
                   <Plus className="w-4 h-4" />
                   New Event
@@ -61,7 +64,7 @@ export const AppLayout = () => {
               ) : (
                 <button
                   onClick={() => navigate("/login")}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                  className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors shadow-sm"
                 >
                   <Plus className="w-4 h-4" />
                   New Event
@@ -114,7 +117,7 @@ export const AppLayout = () => {
                           className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         >
                           <MapPin className="w-4 h-4" />
-                          Venues
+                          Locations
                         </Link>
                         <hr className="my-1 border-gray-100" />
                         <button
@@ -163,7 +166,7 @@ export const AppLayout = () => {
                     setIsMobileMenuOpen(false);
                     navigate("/login");
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg mb-2"
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-xl mb-2"
                 >
                   <Plus className="w-4 h-4" />
                   New Event
@@ -189,7 +192,7 @@ export const AppLayout = () => {
       </header>
 
       {/* Main Content */}
-      <main className="px-4 py-4 max-w-4xl mx-auto">
+      <main className="px-4 py-5 max-w-4xl mx-auto">
         <Outlet />
       </main>
     </div>

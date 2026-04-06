@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToastStore, getErrorMessage } from "../utils/toast";
-import { listEvents, getEvent, createEvent, updateEventStatus, setChosenOption } from "../api/events";
+import {
+  listEvents,
+  getEvent,
+  createEvent,
+  updateEventStatus,
+  setChosenOption,
+  updateEventSchedule,
+  listEventScheduleHistory,
+} from "../api/events";
 import {
   listUserCreatedEvents,
   listUserParticipatedEvents,
@@ -118,6 +126,45 @@ export const useSetChosenOption = () => {
     },
     onError: (error) => {
       showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useUpdateEventSchedule = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, data }) => updateEventSchedule(eventId, data),
+    onSuccess: (_, { shareToken }) => {
+      queryClient.invalidateQueries({ queryKey: ["event", shareToken] });
+      queryClient.invalidateQueries({
+        queryKey: ["event", shareToken, "options", "with-voters"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["event", shareToken, "schedule", "history"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      showSuccess("Event schedule updated");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useEventScheduleHistory = (eventId, enabled = true, shareToken) => {
+  const showError = useToastStore((state) => state.showError);
+
+  return useQuery({
+    queryKey: ["event", shareToken || eventId, "schedule", "history"],
+    queryFn: () => listEventScheduleHistory(eventId),
+    enabled: !!eventId && enabled,
+    meta: {
+      onError: (error) => {
+        showError(getErrorMessage(error));
+      },
     },
   });
 };

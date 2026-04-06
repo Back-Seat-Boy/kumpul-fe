@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --app-bg: #f5f7f5;
+    --card-bg: #ffffff;
+    --text-primary: #14211a;
+    --text-muted: #5c6e63;
+    --line-soft: #d8e5dc;
+    --brand-600: #1f7a49;
+    --brand-700: #16653b;
+    --brand-glow: #e6f5ec;
+  }
+}
+
 /* Base styles */
 * {
   box-sizing: border-box;
@@ -11,6 +24,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: var(--text-primary);
+  background:
+    radial-gradient(1200px 360px at 50% -220px, #d7f2e1 0%, rgba(215, 242, 225, 0) 70%),
+    var(--app-bg);
 }
 
 /* Custom scrollbar */
@@ -64,4 +81,21 @@ body {
 
 .zoom-in {
   animation-name: zoom-in;
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border bg-white shadow-sm;
+    border-color: var(--line-soft);
+  }
+
+  .surface-card-hover {
+    @apply transition-all duration-200;
+  }
+
+  .surface-card-hover:hover {
+    @apply shadow-md;
+    border-color: #c9ddcf;
+    transform: translateY(-1px);
+  }
 }

@@ -39,3 +39,13 @@ export const setChosenOption = async (eventId, optionId) => {
   const res = await api.patch(`/api/events/${eventId}/chosen-option/`, { option_id: optionId });
   return res.data;
 };
+
+export const updateEventSchedule = async (eventId, data) => {
+  const res = await api.patch(`/api/events/${eventId}/schedule/`, data);
+  return res.data;
+};
+
+export const listEventScheduleHistory = async (eventId) => {
+  const res = await api.get(`/api/events/${eventId}/schedule/history/`);
+  return res.data.data;
+};
