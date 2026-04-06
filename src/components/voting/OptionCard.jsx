@@ -37,6 +37,7 @@ export const OptionCard = ({
   hasVoted,
   onVote,
   onUnvote,
+  onVoterClick,
   isVoting,
   voteDisabled = false,
   voteDisabledReason = "",
@@ -129,9 +130,15 @@ export const OptionCard = ({
           </div>
           <div className="flex flex-wrap gap-2">
             {option.voters.map((voter) => (
-              <div
+              <button
                 key={voter.user_id}
-                className="flex items-center gap-1.5 px-2 py-1 bg-white rounded-full border border-gray-200"
+                type="button"
+                onClick={() => onVoterClick?.(voter)}
+                className={`flex items-center gap-1.5 px-2 py-1 bg-white rounded-full border border-gray-200 ${
+                  onVoterClick
+                    ? "hover:border-green-300 hover:bg-green-50"
+                    : "cursor-default"
+                }`}
               >
                 <Avatar
                   src={voter.avatar_url}
@@ -139,7 +146,7 @@ export const OptionCard = ({
                   size="sm"
                 />
                 <span className="text-xs text-gray-700">{voter.user_name}</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>

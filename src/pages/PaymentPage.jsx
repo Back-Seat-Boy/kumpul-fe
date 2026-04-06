@@ -918,36 +918,42 @@ export const PaymentPage = () => {
                   </div>
                 )}
                 <div className="pt-2 border-t border-gray-100">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="text-gray-600">Payment Info</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       {isCreator &&
                         (event.status === "open" ||
                           event.status === "payment_open") && (
-                          <button
+                          <Button
+                            variant="secondary"
                             onClick={openEditPaymentConfigModal}
-                            className="p-1 text-gray-400 hover:text-gray-600"
+                            className="px-2 py-1 text-xs"
                             title="Edit payment configuration"
                           >
-                            <Settings2 className="w-4 h-4" />
-                          </button>
+                            <Settings2 className="w-3.5 h-3.5" />
+                            Edit Config
+                          </Button>
                         )}
                       {isCreator && event.status === "payment_open" && (
-                        <button
+                        <Button
+                          variant="secondary"
                           onClick={openEditPaymentInfoModal}
-                          className="p-1 text-gray-400 hover:text-gray-600"
+                          className="px-2 py-1 text-xs"
                           title="Edit payment info"
                         >
-                          <Pencil className="w-4 h-4" />
-                        </button>
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit Payment Info
+                        </Button>
                       )}
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={handleCopyPaymentInfo}
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        className="px-2 py-1 text-xs"
                         title="Copy payment info"
                       >
-                        <Copy className="w-4 h-4" />
-                      </button>
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy
+                      </Button>
                     </div>
                   </div>
                   <p className="text-sm font-mono bg-gray-50 p-2 rounded mt-1">

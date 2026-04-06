@@ -656,6 +656,7 @@ export const EventDetailPage = () => {
                   hasVoted={votedOptionIds.includes(option.id)}
                   onVote={() => handleVote(option.id)}
                   onUnvote={() => handleUnvote(option.id)}
+                  onVoterClick={(voter) => handleOpenUserEvents(voter.user_id)}
                   voteDisabled={isVoteBlocked}
                   voteDisabledReason={voteBlockedReason}
                   isVoting={castVote.isPending || removeVote.isPending}
