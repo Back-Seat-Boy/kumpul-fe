@@ -1038,6 +1038,24 @@ export const EventDetailPage = () => {
           </div>
         )}
 
+        {/* Payment Section */}
+        {(event.status === "payment_open" || event.status === "completed") && (
+          <div className="surface-card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                Payment
+              </h2>
+              <Button variant="secondary" onClick={handleOpenPayment}>
+                View Details
+              </Button>
+            </div>
+            <p className="text-sm text-gray-600">
+              Payment collection is open. Click "View Details" to see payment
+              info and submit your proof.
+            </p>
+          </div>
+        )}
+
         {canCancelEvent && (
           <div className="surface-card p-4">
             <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
@@ -1054,24 +1072,6 @@ export const EventDetailPage = () => {
             >
               Cancel Event
             </Button>
-          </div>
-        )}
-
-        {/* Payment Section */}
-        {(event.status === "payment_open" || event.status === "completed") && (
-          <div className="surface-card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
-                Payment
-              </h2>
-              <Button variant="secondary" onClick={handleOpenPayment}>
-                View Details
-              </Button>
-            </div>
-            <p className="text-sm text-gray-600">
-              Payment collection is open. Click "View Details" to see payment
-              info and submit your proof.
-            </p>
           </div>
         )}
 
