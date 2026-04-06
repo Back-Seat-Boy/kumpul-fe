@@ -145,6 +145,7 @@ export const EventDetailPage = () => {
 
   const [isCloseVotingOpen, setIsCloseVotingOpen] = useState(false);
   const [isVoteLoginPromptOpen, setIsVoteLoginPromptOpen] = useState(false);
+  const [isJoinLoginPromptOpen, setIsJoinLoginPromptOpen] = useState(false);
   const [isProfileLoginPromptOpen, setIsProfileLoginPromptOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [isContactingVenue, setIsContactingVenue] = useState(false);
@@ -178,9 +179,13 @@ export const EventDetailPage = () => {
 
   const isCreator = event && user && event.created_by === user.id;
   const hasJoined = participants?.some((p) => p.user_id === user?.id);
+  const isJoinableStatus =
+    event?.status === "confirmed" ||
+    event?.status === "open" ||
+    event?.status === "payment_open";
   const canAddGuest =
     !!sessionId &&
-    (event?.status === "open" || event?.status === "payment_open") &&
+    isJoinableStatus &&
     (isCreator || hasJoined);
 
   if (isLoadingEvent) {
@@ -281,7 +286,7 @@ export const EventDetailPage = () => {
     }
 
     if (!sessionId) {
-      navigate("/login");
+      setIsJoinLoginPromptOpen(true);
       return;
     }
     try {
@@ -302,6 +307,11 @@ export const EventDetailPage = () => {
   const handleAddGuest = async () => {
     if (isJoinBlocked) {
       showError(joinBlockedReason);
+      return;
+    }
+
+    if (!sessionId) {
+      setIsJoinLoginPromptOpen(true);
       return;
     }
 
@@ -498,9 +508,7 @@ export const EventDetailPage = () => {
               payment={paymentData?.payment}
             />
             {/* Join/Leave only allowed when status is open or payment_open */}
-            {sessionId &&
-              !isCreator &&
-              (event.status === "open" || event.status === "payment_open") && (
+            {!isCreator && isJoinableStatus && (
                 <Button
                   variant={hasJoined ? "secondary" : "primary"}
                   onClick={hasJoined ? handleLeave : handleJoin}
@@ -860,6 +868,30 @@ export const EventDetailPage = () => {
             <Button
               variant="secondary"
               onClick={() => setIsVoteLoginPromptOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => navigate("/login")} className="flex-1">
+              Go to Login
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isJoinLoginPromptOpen}
+        onClose={() => setIsJoinLoginPromptOpen(false)}
+        title="Login Required"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            You need to log in first to join this event or add a guest.
+          </p>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsJoinLoginPromptOpen(false)}
               className="flex-1"
             >
               Cancel

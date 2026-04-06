@@ -16,8 +16,19 @@ export const joinEvent = async (eventId) => {
 };
 
 export const joinEventByShare = async (shareToken) => {
-  const res = await api.post(`/api/events/share/${shareToken}/participants/`);
-  return res.data;
+  try {
+    const res = await api.post(`/api/events/share/${shareToken}/participants/`);
+    return res.data;
+  } catch (error) {
+    const status = error?.response?.status;
+    if (status === 404 || status === 405) {
+      const fallbackRes = await api.post(
+        `/api/events/share/${shareToken}/participants`,
+      );
+      return fallbackRes.data;
+    }
+    throw error;
+  }
 };
 
 export const addGuestParticipant = async (eventId, guestName) => {
@@ -28,10 +39,27 @@ export const addGuestParticipant = async (eventId, guestName) => {
 };
 
 export const addGuestParticipantByShare = async (shareToken, guestName) => {
-  const res = await api.post(`/api/events/share/${shareToken}/participants/guest/`, {
-    guest_name: guestName,
-  });
-  return res.data;
+  try {
+    const res = await api.post(
+      `/api/events/share/${shareToken}/participants/guest/`,
+      {
+        guest_name: guestName,
+      },
+    );
+    return res.data;
+  } catch (error) {
+    const status = error?.response?.status;
+    if (status === 404 || status === 405) {
+      const fallbackRes = await api.post(
+        `/api/events/share/${shareToken}/participants/guest`,
+        {
+          guest_name: guestName,
+        },
+      );
+      return fallbackRes.data;
+    }
+    throw error;
+  }
 };
 
 export const leaveEvent = async (eventId) => {

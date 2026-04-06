@@ -14,9 +14,12 @@ export const AppLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
+  const sessionId = useAuthStore((state) => state.sessionId);
   const clearSession = useAuthStore((state) => state.clearSession);
   const navigate = useNavigate();
   const location = useLocation();
+  const isLoggedIn = !!sessionId;
+  const isHomePage = location.pathname === "/";
 
   const handleLogout = async () => {
     try {
@@ -46,13 +49,24 @@ export const AppLayout = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              to="/events/new"
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              New Event
-            </Link>
+            {!isHomePage &&
+              (isLoggedIn ? (
+                <Link
+                  to="/events/new"
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Event
+                </Link>
+              ) : (
+                <button
+                  onClick={() => navigate("/login")}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Event
+                </button>
+              ))}
 
             {/* Profile Dropdown */}
             <div className="relative">
@@ -60,9 +74,9 @@ export const AppLayout = () => {
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="flex items-center gap-2 p-1 pr-3 rounded-lg hover:bg-gray-100 transition-colors"
               >
-                <Avatar src={user?.avatar_url} name={user?.name} size="sm" />
+                <Avatar src={user?.avatar_url} name={user?.name || "Guest"} size="sm" />
                 <span className="hidden sm:block text-sm font-medium text-gray-700">
-                  {user?.name?.split(" ")[0]}
+                  {isLoggedIn ? user?.name?.split(" ")[0] : "Guest"}
                 </span>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
@@ -74,40 +88,55 @@ export const AppLayout = () => {
                     onClick={() => setIsProfileOpen(false)}
                   />
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    <Link
-                      to="/settings/profile"
-                      onClick={() => setIsProfileOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      <User className="w-4 h-4" />
-                      Profile
-                    </Link>
-                    {user?.id && (
-                      <Link
-                        to={`/users/${user.id}/events`}
-                        onClick={() => setIsProfileOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    {isLoggedIn ? (
+                      <>
+                        <Link
+                          to="/settings/profile"
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <User className="w-4 h-4" />
+                          Profile
+                        </Link>
+                        {user?.id && (
+                          <Link
+                            to={`/users/${user.id}/events`}
+                            onClick={() => setIsProfileOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Calendar className="w-4 h-4" />
+                            My Events
+                          </Link>
+                        )}
+                        <Link
+                          to="/settings/venues"
+                          onClick={() => setIsProfileOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <MapPin className="w-4 h-4" />
+                          Venues
+                        </Link>
+                        <hr className="my-1 border-gray-100" />
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Logout
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setIsProfileOpen(false);
+                          navigate("/login");
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        <Calendar className="w-4 h-4" />
-                        My Events
-                      </Link>
+                        <User className="w-4 h-4" />
+                        Login
+                      </button>
                     )}
-                    <Link
-                      to="/settings/venues"
-                      onClick={() => setIsProfileOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      <MapPin className="w-4 h-4" />
-                      Venues
-                    </Link>
-                    <hr className="my-1 border-gray-100" />
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Logout
-                    </button>
                   </div>
                 </>
               )}
@@ -118,14 +147,28 @@ export const AppLayout = () => {
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="lg:hidden border-t border-gray-200 px-4 py-2 bg-white">
-            <Link
-              to="/events/new"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg mb-2"
-            >
-              <Plus className="w-4 h-4" />
-              New Event
-            </Link>
+            {!isHomePage &&
+              (isLoggedIn ? (
+                <Link
+                  to="/events/new"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg mb-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Event
+                </Link>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    navigate("/login");
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg mb-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Event
+                </button>
+              ))}
             {navItems.map((item) => (
               <Link
                 key={item.path}

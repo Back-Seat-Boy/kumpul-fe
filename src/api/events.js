@@ -1,7 +1,7 @@
 import api from "./axios";
 
 // List events with pagination and filters
-// params: { page, limit, status, search, visibility }
+// params: { page, limit, status, search, visibility, publicOnly }
 export const listEvents = async (params = {}) => {
   const queryParams = new URLSearchParams();
   
@@ -12,7 +12,8 @@ export const listEvents = async (params = {}) => {
   if (params.visibility) queryParams.set("visibility", params.visibility);
   
   const query = queryParams.toString();
-  const url = query ? `/api/events/?${query}` : "/api/events/";
+  const basePath = params.publicOnly ? "/events/public/" : "/api/events/";
+  const url = query ? `${basePath}?${query}` : basePath;
   
   const res = await api.get(url);
   return res.data.data;

@@ -1,11 +1,13 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Calendar, Search, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEvents } from "../hooks/useEvents";
+import { useAuthStore } from "../store/authStore";
 import { EventCard } from "../components/event/EventCard";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
 
 const EVENT_STATUSES = [
   { value: "", label: "All Status" },
@@ -25,18 +27,47 @@ const EVENT_VISIBILITIES = [
 const LIMIT = 10;
 
 export const HomePage = () => {
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState("");
-  const [visibility, setVisibility] = useState("");
-  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sessionId = useAuthStore((state) => state.sessionId);
+  const isLoggedIn = !!sessionId;
+  const [isLoginPromptOpen, setIsLoginPromptOpen] = useState(false);
+
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+  const status = searchParams.get("status") || "";
+  const visibility = isLoggedIn ? searchParams.get("visibility") || "" : "";
+  const search = searchParams.get("search") || "";
   const [searchInput, setSearchInput] = useState("");
+
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
+
+  const updateQuery = (updates = {}) => {
+    const next = new URLSearchParams(searchParams);
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, String(value));
+      }
+    });
+
+    if (!isLoggedIn) {
+      next.delete("visibility");
+    }
+
+    setSearchParams(next, { replace: true });
+  };
 
   const { data, isLoading } = useEvents({
     page,
     limit: LIMIT,
     status: status || undefined,
-    visibility: visibility || undefined,
+    visibility: isLoggedIn ? visibility || undefined : undefined,
     search: search || undefined,
+    publicOnly: !isLoggedIn,
   });
 
   const events = data?.events || [];
@@ -46,24 +77,28 @@ export const HomePage = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
+    updateQuery({ search: searchInput.trim(), page: 1 });
   };
 
   const handleClearSearch = () => {
     setSearchInput("");
-    setSearch("");
-    setPage(1);
+    updateQuery({ search: "", page: 1 });
   };
 
   const handleStatusChange = (e) => {
-    setStatus(e.target.value);
-    setPage(1);
+    updateQuery({ status: e.target.value, page: 1 });
   };
 
   const handleVisibilityChange = (e) => {
-    setVisibility(e.target.value);
-    setPage(1);
+    updateQuery({ visibility: e.target.value, page: 1 });
+  };
+
+  const handleNewEventClick = () => {
+    if (isLoggedIn) {
+      navigate("/events/new");
+      return;
+    }
+    setIsLoginPromptOpen(true);
   };
 
   return (
@@ -71,13 +106,13 @@ export const HomePage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Events</h1>
-        <Link
-          to="/events/new"
+        <button
+          onClick={handleNewEventClick}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Event
-        </Link>
+        </button>
       </div>
 
       {/* Filters */}
@@ -122,25 +157,29 @@ export const HomePage = () => {
               </option>
             ))}
           </select>
-          <select
-            value={visibility}
-            onChange={handleVisibilityChange}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-          >
-            {EVENT_VISIBILITIES.map((v) => (
-              <option key={v.value} value={v.value}>
-                {v.label}
-              </option>
-            ))}
-          </select>
+          {isLoggedIn && (
+            <select
+              value={visibility}
+              onChange={handleVisibilityChange}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              {EVENT_VISIBILITIES.map((v) => (
+                <option key={v.value} value={v.value}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          )}
           {(status || visibility || search) && (
             <button
               onClick={() => {
-                setStatus("");
-                setVisibility("");
-                setSearch("");
+                updateQuery({
+                  status: "",
+                  visibility: "",
+                  search: "",
+                  page: 1,
+                });
                 setSearchInput("");
-                setPage(1);
               }}
               className="text-sm text-green-600 hover:text-green-700"
             >
@@ -183,12 +222,10 @@ export const HomePage = () => {
           }
           action={
             !search && !status ? (
-              <Link to="/events/new">
-                <Button>
-                  <Plus className="w-4 h-4" />
-                  Create Event
-                </Button>
-              </Link>
+              <Button onClick={handleNewEventClick}>
+                <Plus className="w-4 h-4" />
+                Create Event
+              </Button>
             ) : null
           }
           className="bg-white rounded-xl border border-gray-200 py-12"
@@ -204,7 +241,7 @@ export const HomePage = () => {
           <div className="flex gap-2">
             <Button
               variant="secondary"
-              onClick={() => setPage(page - 1)}
+              onClick={() => updateQuery({ page: page - 1 })}
               disabled={page <= 1}
               className="px-3"
             >
@@ -213,7 +250,7 @@ export const HomePage = () => {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => setPage(page + 1)}
+              onClick={() => updateQuery({ page: page + 1 })}
               disabled={!hasMore && page >= totalPages}
               className="px-3"
             >
@@ -223,6 +260,30 @@ export const HomePage = () => {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={isLoginPromptOpen}
+        onClose={() => setIsLoginPromptOpen(false)}
+        title="Login Required"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            You need to log in first to create a new event.
+          </p>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsLoginPromptOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => navigate("/login")} className="flex-1">
+              Go to Login
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

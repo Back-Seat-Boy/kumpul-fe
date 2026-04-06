@@ -35,6 +35,11 @@ function App() {
           <Route path="/events/:shareToken/payment" element={<PaymentPage />} />
         </Route>
 
+        {/* Shared app layout (public home) */}
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<HomePage />} />
+        </Route>
+
         {/* Protected routes */}
         <Route
           element={
@@ -43,7 +48,6 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<HomePage />} />
           <Route path="/events/new" element={<CreateEventPage />} />
           <Route path="/users/:userId/events" element={<UserEventsPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
