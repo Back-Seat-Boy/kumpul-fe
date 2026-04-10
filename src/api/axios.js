@@ -6,16 +6,31 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
 });
 
+const isProtectedPath = (pathname = "") => {
+  return (
+    pathname.startsWith("/events/new") ||
+    pathname.startsWith("/users/") ||
+    pathname.startsWith("/settings/")
+  );
+};
+
+const redirectIfProtected = () => {
+  const pathname = window.location.pathname || "";
+  if (isProtectedPath(pathname)) {
+    window.location.href = "/login";
+  }
+};
+
 api.interceptors.request.use((config) => {
   const state = useAuthStore.getState();
   const sessionId = state.sessionId;
   
   // Check if session is expired before making the request
   if (sessionId && !state.isSessionValid()) {
-    // Session expired - clear and redirect
+    // Session expired - clear session. Only redirect if user is on a protected page.
     state.clearSession();
-    window.location.href = "/login";
-    return Promise.reject(new Error("Session expired"));
+    redirectIfProtected();
+    return config;
   }
   
   if (sessionId) {
@@ -32,8 +47,30 @@ api.interceptors.response.use(
     
     // Handle 401 - Unauthorized
     if (error.response?.status === 401) {
+      const originalRequest = error.config;
+      const hadAuthHeader = Boolean(
+        originalRequest?.headers?.Authorization ||
+          originalRequest?.headers?.authorization,
+      );
+
       useAuthStore.getState().clearSession();
-      window.location.href = "/login";
+
+      // On public pages, retry once without Authorization so guest access still works.
+      if (
+        hadAuthHeader &&
+        originalRequest &&
+        !originalRequest._retry &&
+        !isProtectedPath(window.location.pathname || "")
+      ) {
+        originalRequest._retry = true;
+        if (originalRequest.headers) {
+          delete originalRequest.headers.Authorization;
+          delete originalRequest.headers.authorization;
+        }
+        return api(originalRequest);
+      }
+
+      redirectIfProtected();
       return Promise.reject(error);
     }
     
