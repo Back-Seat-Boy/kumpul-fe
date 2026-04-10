@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { Spinner } from "../components/ui/Spinner";
 
+const LOGIN_RETURN_TO_KEY = "kumpul-login-return-to";
+
 export const AuthCallbackPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -13,6 +15,7 @@ export const AuthCallbackPage = () => {
     const sessionId = searchParams.get("session_id");
     const errorMsg = searchParams.get("error");
     const expiresAt = searchParams.get("expires_at");
+    const returnTo = sessionStorage.getItem(LOGIN_RETURN_TO_KEY) || "/";
 
     if (errorMsg) {
       setError(decodeURIComponent(errorMsg));
@@ -57,7 +60,8 @@ export const AuthCallbackPage = () => {
       }
 
       setSession(sessionId, user, expiresAt);
-      navigate("/", { replace: true });
+      sessionStorage.removeItem(LOGIN_RETURN_TO_KEY);
+      navigate(returnTo, { replace: true });
     } else {
       setError("Missing session ID");
       setTimeout(() => {

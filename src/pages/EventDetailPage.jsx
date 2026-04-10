@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Calendar,
   MapPin,
@@ -160,6 +160,7 @@ const getGoogleCalendarUrl = ({ event, chosenOption, shareToken }) => {
 
 export const EventDetailPage = () => {
   const { shareToken } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const sessionId = useAuthStore((state) => state.sessionId);
@@ -583,6 +584,7 @@ export const EventDetailPage = () => {
   };
 
   const chosenOption = options?.find((o) => o.id === event.chosen_option_id);
+  const loginTarget = `${location.pathname}${location.search}${location.hash}`;
   const creatorParticipant = participants?.find(
     (p) => p.user_id === event.created_by,
   );
@@ -1153,7 +1155,12 @@ export const EventDetailPage = () => {
             >
               Cancel
             </Button>
-            <Button onClick={() => navigate("/login")} className="flex-1">
+            <Button
+              onClick={() =>
+                navigate(`/login?returnTo=${encodeURIComponent(loginTarget)}`)
+              }
+              className="flex-1"
+            >
               Go to Login
             </Button>
           </div>
@@ -1177,7 +1184,12 @@ export const EventDetailPage = () => {
             >
               Cancel
             </Button>
-            <Button onClick={() => navigate("/login")} className="flex-1">
+            <Button
+              onClick={() =>
+                navigate(`/login?returnTo=${encodeURIComponent(loginTarget)}`)
+              }
+              className="flex-1"
+            >
               Go to Login
             </Button>
           </div>
@@ -1201,7 +1213,12 @@ export const EventDetailPage = () => {
             >
               Cancel
             </Button>
-            <Button onClick={() => navigate("/login")} className="flex-1">
+            <Button
+              onClick={() =>
+                navigate(`/login?returnTo=${encodeURIComponent(loginTarget)}`)
+              }
+              className="flex-1"
+            >
               Go to Login
             </Button>
           </div>

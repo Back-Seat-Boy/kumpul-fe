@@ -1,28 +1,38 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { getGoogleLoginUrl } from "../api/auth";
 import { Button } from "../components/ui/Button";
 import { CalendarDays } from "lucide-react";
 import { getErrorMessage } from "../utils/toast";
 
+const LOGIN_RETURN_TO_KEY = "kumpul-login-return-to";
+
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const sessionId = useAuthStore((state) => state.sessionId);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const locationStateReturnTo = location.state?.from
+    ? `${location.state.from.pathname || ""}${location.state.from.search || ""}${location.state.from.hash || ""}`
+    : "";
+  const queryReturnTo = searchParams.get("returnTo") || "";
+  const returnTo =
+    queryReturnTo || locationStateReturnTo || sessionStorage.getItem(LOGIN_RETURN_TO_KEY) || "/";
 
   useEffect(() => {
-    // If already logged in, redirect to home
     if (sessionId) {
-      navigate("/", { replace: true });
+      navigate(returnTo, { replace: true });
     }
-  }, [sessionId, navigate]);
+  }, [sessionId, navigate, returnTo]);
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      sessionStorage.setItem(LOGIN_RETURN_TO_KEY, returnTo);
       const { login_url } = await getGoogleLoginUrl();
       window.location.href = login_url;
     } catch (error) {
