@@ -206,7 +206,9 @@ export const EventDetailPage = () => {
     !!sessionId &&
       (event?.status === "payment_open" || event?.status === "completed"),
   );
-  const { data: venuesData } = useVenues();
+  const { data: venuesData } = useVenues({
+    enabled: !!sessionId && (isEditScheduleOpen || isEditVoteOptionOpen),
+  });
   const venues = venuesData?.venues || [];
   const { data: scheduleHistory = [], isLoading: isLoadingScheduleHistory } =
     useEventScheduleHistory(

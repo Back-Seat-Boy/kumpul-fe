@@ -6,10 +6,12 @@ const DEFAULT_LIMIT = 10;
 
 export const useVenues = (params = {}) => {
   const showError = useToastStore((state) => state.showError);
+  const { enabled = true, ...queryParams } = params;
   
   return useQuery({
-    queryKey: ["venues", params],
-    queryFn: () => listVenues(params),
+    queryKey: ["venues", queryParams],
+    queryFn: () => listVenues(queryParams),
+    enabled,
     meta: {
       onError: (error) => {
         showError(getErrorMessage(error));
