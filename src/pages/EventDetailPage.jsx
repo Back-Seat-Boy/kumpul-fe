@@ -52,6 +52,7 @@ import { getVenueWhatsAppLink } from "../api/whatsapp";
 import { useToastStore, getErrorMessage } from "../utils/toast";
 import { useVenues } from "../hooks/useVenues";
 import { toRFC3339 } from "../utils/format";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 const getEmbeddableMapUrl = (mapsUrl) => {
   if (!mapsUrl) return null;
@@ -119,6 +120,30 @@ const formatBackendUtcTimestamp = (timestamp) => {
 
   const [, year, month, day, hour, minute] = match;
   return `${day}/${month}/${year} ${hour}:${minute}`;
+};
+
+const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+
+const renderLinkifiedText = (text) => {
+  if (!text) return null;
+
+  return text.split(URL_PATTERN).map((part, index) => {
+    if (part.startsWith("http://") || part.startsWith("https://")) {
+      return (
+        <a
+          key={`${part}-${index}`}
+          href={part}
+          target="_blank"
+          rel="noreferrer"
+          className="text-green-700 underline underline-offset-2 hover:text-green-800 break-all"
+        >
+          {part}
+        </a>
+      );
+    }
+
+    return <span key={`text-${index}`}>{part}</span>;
+  });
 };
 
 const getGoogleCalendarUrl = ({ event, chosenOption, shareToken }) => {
@@ -250,6 +275,16 @@ export const EventDetailPage = () => {
     isCreator &&
     event?.status !== "completed" &&
     event?.status !== "cancelled";
+
+  usePageMeta({
+    title: event?.title ? `${event.title} | Kumpul` : "Event Detail | Kumpul",
+    description:
+      event?.description ||
+      (event?.status === "voting"
+        ? "Vote on the best time and place for this event."
+        : "See event details, participants, and payment status."),
+    url: `${window.location.origin}${location.pathname}${location.search}${location.hash}`,
+  });
 
   if (isLoadingEvent) {
     return (
@@ -702,7 +737,7 @@ export const EventDetailPage = () => {
               <h1 className="text-xl font-bold text-gray-900">{event.title}</h1>
               {event.description && (
                 <p className="text-sm text-gray-500 mt-1 break-all">
-                  {event.description}
+                  {renderLinkifiedText(event.description)}
                 </p>
               )}
               <span className="inline-flex mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
@@ -794,7 +829,9 @@ export const EventDetailPage = () => {
             {chosenOption.venue?.address && (
               <p className="text-sm text-gray-500 flex items-start gap-1 mt-1 min-w-0">
                 <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                <span className="break-all">{chosenOption.venue.address}</span>
+                <span className="break-all">
+                  {renderLinkifiedText(chosenOption.venue.address)}
+                </span>
               </p>
             )}
             <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">

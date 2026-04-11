@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Calendar, Search, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEvents } from "../hooks/useEvents";
 import { useAuthStore } from "../store/authStore";
@@ -8,6 +8,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 const EVENT_STATUSES = [
   { value: "", label: "All Status" },
@@ -28,6 +29,7 @@ const EVENT_VISIBILITIES = [
 const LIMIT = 10;
 
 export const HomePage = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = useAuthStore((state) => state.sessionId);
@@ -39,6 +41,13 @@ export const HomePage = () => {
   const visibility = isLoggedIn ? searchParams.get("visibility") || "" : "";
   const search = searchParams.get("search") || "";
   const [searchInput, setSearchInput] = useState("");
+
+  usePageMeta({
+    title: "Kumpul | Discover Events",
+    description:
+      "Discover public events, vote on plans, and keep your group payments organized in one place.",
+    url: `${window.location.origin}${location.pathname}${location.search}${location.hash}`,
+  });
 
   useEffect(() => {
     setSearchInput(search);

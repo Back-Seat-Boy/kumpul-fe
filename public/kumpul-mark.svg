@@ -1,0 +1,14 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- outer people ring — 5 circles converging toward center -->
+  <circle cx="100" cy="34" r="16" fill="#9FE1CB"/>
+  <circle cx="151" cy="65" r="16" fill="#5DCAA5"/>
+  <circle cx="151" cy="135" r="16" fill="#1D9E75"/>
+  <circle cx="49" cy="135" r="16" fill="#5DCAA5"/>
+  <circle cx="49" cy="65" r="16" fill="#9FE1CB"/>
+
+  <!-- center circle — the gathering point -->
+  <circle cx="100" cy="100" r="26" fill="#1D9E75"/>
+
+  <!-- small white dot in center -->
+  <circle cx="100" cy="100" r="8" fill="white" opacity="0.9"/>
+</svg>
