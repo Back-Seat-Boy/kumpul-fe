@@ -8,6 +8,7 @@ import {
   setChosenOption,
   updateEventSchedule,
   listEventScheduleHistory,
+  updateEventImages,
 } from "../api/events";
 import {
   listUserCreatedEvents,
@@ -165,6 +166,24 @@ export const useEventScheduleHistory = (eventId, enabled = true, shareToken) => 
       onError: (error) => {
         showError(getErrorMessage(error));
       },
+    },
+  });
+};
+
+export const useUpdateEventImages = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, imageUrls }) => updateEventImages(eventId, imageUrls),
+    onSuccess: (_, { shareToken }) => {
+      queryClient.invalidateQueries({ queryKey: ["event", shareToken] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      showSuccess("Event gallery updated");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
     },
   });
 };

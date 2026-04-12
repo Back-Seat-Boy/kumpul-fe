@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle,
@@ -13,6 +13,7 @@ import {
   Check,
   Pencil,
   Settings2,
+  Send,
 } from "lucide-react";
 import {
   usePayment,
@@ -29,13 +30,23 @@ import { useParticipants } from "../hooks/useParticipants";
 import { useAuthStore } from "../store/authStore";
 import { Button } from "../components/ui/Button";
 import { CurrencyInput } from "../components/ui/CurrencyInput";
+import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { Spinner } from "../components/ui/Spinner";
+import { Textarea } from "../components/ui/Textarea";
 import { PaymentRecordRow } from "../components/payment/PaymentRecordRow";
 import { ProofUploader } from "../components/payment/ProofUploader";
-import { formatRupiah } from "../utils/format";
+import { formatBackendTimestamp, formatRupiah } from "../utils/format";
 import { uploadImage } from "../api/uploads";
 import { useToastStore, getErrorMessage } from "../utils/toast";
+import { useMyPaymentMethods } from "../hooks/useUsers";
+import {
+  useConfirmRefundReceipt,
+  useEventRefunds,
+  useMarkRefundSent,
+  useMyRefunds,
+  useUpdateRefundDestination,
+} from "../hooks/useRefunds";
 
 // Helper to get action icon and color
 const getActionStyle = (action) => {
@@ -104,6 +115,36 @@ const getParticipantDisplayName = (participant) => {
 
   if (isGuestLike) return participant.guest_name || "Guest";
   return participant.user?.name || participant.guest_name || "Participant";
+};
+
+const getRefundStatusText = (status) => {
+  switch (status) {
+    case "pending_info":
+      return "Waiting for destination info";
+    case "ready_to_send":
+      return "Ready to send";
+    case "sent":
+      return "Refund sent";
+    case "received":
+      return "Refund received";
+    default:
+      return status || "Unknown";
+  }
+};
+
+const getRefundStatusClasses = (status) => {
+  switch (status) {
+    case "pending_info":
+      return "bg-yellow-50 text-yellow-800 border-yellow-200";
+    case "ready_to_send":
+      return "bg-blue-50 text-blue-800 border-blue-200";
+    case "sent":
+      return "bg-emerald-50 text-emerald-800 border-emerald-200";
+    case "received":
+      return "bg-green-50 text-green-800 border-green-200";
+    default:
+      return "bg-gray-50 text-gray-700 border-gray-200";
+  }
 };
 
 const getSplitBillItemParticipantIds = (item) => {
@@ -181,8 +222,20 @@ const canonicalizeParticipantIds = (ids = [], options = []) => {
   return Array.from(new Set(resolved.map((id) => normalizeId(id)).filter(Boolean)));
 };
 
+const readFileAsBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result?.toString() || "";
+      resolve(result.split(",")[1] || "");
+    };
+    reader.onerror = reject;
+  });
+
 export const PaymentPage = () => {
   const { shareToken } = useParams();
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const sessionId = useAuthStore((state) => state.sessionId);
   const showError = useToastStore((state) => state.showError);
@@ -190,6 +243,7 @@ export const PaymentPage = () => {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [paymentType, setPaymentType] = useState("total");
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState("");
   const [totalCost, setTotalCost] = useState("");
   const [perPersonAmount, setPerPersonAmount] = useState("");
   const [splitBillTaxAmount, setSplitBillTaxAmount] = useState(0);
@@ -197,8 +251,11 @@ export const PaymentPage = () => {
     { name: "", price: "", participant_ids: [] },
   ]);
   const [paymentInfo, setPaymentInfo] = useState("");
+  const [paymentImageUrl, setPaymentImageUrl] = useState("");
   const [isEditPaymentInfoOpen, setIsEditPaymentInfoOpen] = useState(false);
+  const [editedPaymentMethodId, setEditedPaymentMethodId] = useState("");
   const [editedPaymentInfo, setEditedPaymentInfo] = useState("");
+  const [editedPaymentImageUrl, setEditedPaymentImageUrl] = useState("");
   const [isEditPaymentConfigOpen, setIsEditPaymentConfigOpen] = useState(false);
   const [editedPaymentType, setEditedPaymentType] = useState("total");
   const [editedTotalCost, setEditedTotalCost] = useState("");
@@ -208,6 +265,9 @@ export const PaymentPage = () => {
     { name: "", price: "", participant_ids: [] },
   ]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingPaymentImage, setIsUploadingPaymentImage] = useState(false);
+  const [isUploadingEditedPaymentImage, setIsUploadingEditedPaymentImage] =
+    useState(false);
 
   // Adjustment modal state
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
@@ -219,10 +279,30 @@ export const PaymentPage = () => {
   const [chargeAllOpen, setChargeAllOpen] = useState(false);
   const [chargeAllAmount, setChargeAllAmount] = useState("");
   const [chargeAllNote, setChargeAllNote] = useState("");
+  const [destinationPaymentMethodId, setDestinationPaymentMethodId] =
+    useState("");
+  const [destinationPaymentInfo, setDestinationPaymentInfo] = useState("");
+  const [destinationPaymentImageUrl, setDestinationPaymentImageUrl] =
+    useState("");
+  const [destinationNote, setDestinationNote] = useState("");
+  const [isUploadingDestinationImage, setIsUploadingDestinationImage] =
+    useState(false);
+  const [isRefundSendModalOpen, setIsRefundSendModalOpen] = useState(false);
+  const [selectedRefund, setSelectedRefund] = useState(null);
+  const [isUploadingRefundProof, setIsUploadingRefundProof] = useState(false);
+  const [refundProofImageUrl, setRefundProofImageUrl] = useState("");
+  const [refundSendNote, setRefundSendNote] = useState("");
 
   const { data: event } = useEvent(shareToken);
+  const isCreator = !!event && !!user && event.created_by === user.id;
   const { data: participants = [] } = useParticipants(shareToken);
   const { data: paymentData, isLoading } = usePayment(event?.id, !!sessionId);
+  const { data: paymentMethods = [] } = useMyPaymentMethods(!!sessionId);
+  const { data: eventRefunds = [] } = useEventRefunds(
+    event?.id,
+    !!sessionId && !!event?.id && isCreator,
+  );
+  const { data: myRefunds = [] } = useMyRefunds(!!sessionId);
 
   const createPayment = useCreatePayment();
   const updatePayment = useUpdatePayment();
@@ -232,8 +312,11 @@ export const PaymentPage = () => {
   const claimPayment = useClaimPayment();
   const confirmPayment = useConfirmPayment();
   const adjustPayment = useAdjustPayment();
+  const updateRefundDestination = useUpdateRefundDestination();
+  const markRefundSent = useMarkRefundSent();
+  const confirmRefundReceipt = useConfirmRefundReceipt();
 
-  const isCreator = event && user && event.created_by === user.id;
+  const loginTarget = `${location.pathname}${location.search}${location.hash}`;
   const payment = paymentData?.payment;
   const records = paymentData?.records || [];
   const summary = paymentData?.summary;
@@ -281,6 +364,12 @@ export const PaymentPage = () => {
         })
         .filter((option) => option.id);
   const splitParticipantLabelMap = new Map();
+  const selectedPaymentMethod = paymentMethods.find(
+    (method) => method.id === selectedPaymentMethodId,
+  );
+  const editedPaymentMethod = paymentMethods.find(
+    (method) => method.id === editedPaymentMethodId,
+  );
   participantOptions.forEach((option) => {
     option.aliases
       .filter(Boolean)
@@ -316,12 +405,25 @@ export const PaymentPage = () => {
   const userSettlement = userRecord
     ? perPersonStatusMap.get(userRecord.participant_id)
     : null;
+  const myRefund = myRefunds.find((refund) => refund.event_id === event?.id);
+  const eventRefundList = [...eventRefunds].sort((a, b) =>
+    String(b.updated_at || b.created_at || "").localeCompare(
+      String(a.updated_at || a.created_at || ""),
+    ),
+  );
   const canUserSubmitPayment =
     !isCreator &&
     event?.status === "payment_open" &&
     userRecord &&
     (userSettlement?.action === "pay_full" ||
       userSettlement?.action === "pay_more");
+  useEffect(() => {
+    if (!myRefund) return;
+    setDestinationPaymentMethodId(myRefund.recipient_payment_method_id || "");
+    setDestinationPaymentInfo(myRefund.recipient_payment_info || "");
+    setDestinationPaymentImageUrl(myRefund.recipient_payment_image_url || "");
+    setDestinationNote(myRefund.recipient_note || "");
+  }, [myRefund]);
 
   const isValidSplitBillItems = (items) =>
     items.length > 0 &&
@@ -393,7 +495,9 @@ export const PaymentPage = () => {
                   })),
                 }
               : { total_cost: parseInt(totalCost, 10) || 0 }),
-          payment_info: paymentInfo,
+          payment_method_id: selectedPaymentMethodId || undefined,
+          payment_info: paymentInfo.trim() || undefined,
+          payment_image_url: paymentImageUrl || undefined,
         },
       });
 
@@ -405,11 +509,13 @@ export const PaymentPage = () => {
 
       setIsCreateModalOpen(false);
       setPaymentType("total");
+      setSelectedPaymentMethodId("");
       setTotalCost("");
       setPerPersonAmount("");
       setSplitBillTaxAmount(0);
       setSplitBillItems([{ name: "", price: "", participant_ids: [] }]);
       setPaymentInfo("");
+      setPaymentImageUrl("");
     } catch (error) {
       showError(getErrorMessage(error));
     }
@@ -422,7 +528,9 @@ export const PaymentPage = () => {
       await updatePayment.mutateAsync({
         eventId: event.id,
         data: {
-          payment_info: editedPaymentInfo.trim(),
+          payment_method_id: editedPaymentMethodId || undefined,
+          payment_info: editedPaymentInfo.trim() || undefined,
+          payment_image_url: editedPaymentImageUrl || undefined,
         },
       });
       setIsEditPaymentInfoOpen(false);
@@ -468,7 +576,9 @@ export const PaymentPage = () => {
   };
 
   const openEditPaymentInfoModal = () => {
+    setEditedPaymentMethodId(payment?.payment_method_id || "");
     setEditedPaymentInfo(payment?.payment_info || "");
+    setEditedPaymentImageUrl(payment?.payment_image_url || "");
     setIsEditPaymentInfoOpen(true);
   };
 
@@ -598,6 +708,130 @@ export const PaymentPage = () => {
     }
   };
 
+  const handlePaymentImageUpload = async (file, isEdit = false) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showError("Please choose an image file");
+      return;
+    }
+
+    if (isEdit) {
+      setIsUploadingEditedPaymentImage(true);
+    } else {
+      setIsUploadingPaymentImage(true);
+    }
+
+    try {
+      const base64 = await readFileAsBase64(file);
+      const { url } = await uploadImage(base64);
+      if (isEdit) {
+        setEditedPaymentImageUrl(url);
+      } else {
+        setPaymentImageUrl(url);
+      }
+    } catch (error) {
+      showError(getErrorMessage(error));
+    } finally {
+      if (isEdit) {
+        setIsUploadingEditedPaymentImage(false);
+      } else {
+        setIsUploadingPaymentImage(false);
+      }
+    }
+  };
+
+  const handleRefundDestinationImageUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showError("Please choose an image file");
+      return;
+    }
+
+    setIsUploadingDestinationImage(true);
+    try {
+      const base64 = await readFileAsBase64(file);
+      const { url } = await uploadImage(base64);
+      setDestinationPaymentImageUrl(url);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    } finally {
+      setIsUploadingDestinationImage(false);
+    }
+  };
+
+  const handleRefundProofImageUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showError("Please choose an image file");
+      return;
+    }
+
+    setIsUploadingRefundProof(true);
+    try {
+      const base64 = await readFileAsBase64(file);
+      const { url } = await uploadImage(base64);
+      setRefundProofImageUrl(url);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    } finally {
+      setIsUploadingRefundProof(false);
+    }
+  };
+
+  const handleSubmitRefundDestination = async () => {
+    if (!myRefund) return;
+    if (!destinationPaymentMethodId && !destinationPaymentInfo.trim()) {
+      showError("Choose a saved payment method or fill payment info");
+      return;
+    }
+
+    try {
+      await updateRefundDestination.mutateAsync({
+        refundId: myRefund.id,
+        data: {
+          payment_method_id: destinationPaymentMethodId || undefined,
+          payment_info: destinationPaymentInfo.trim() || undefined,
+          payment_image_url: destinationPaymentImageUrl || undefined,
+          note: destinationNote.trim() || undefined,
+        },
+      });
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
+  const handleMarkRefundSent = async (refundId) => {
+    try {
+      await markRefundSent.mutateAsync({
+        refundId,
+        data: {
+          proof_image_url: refundProofImageUrl || undefined,
+          note: refundSendNote.trim() || undefined,
+        },
+      });
+      setRefundProofImageUrl("");
+      setRefundSendNote("");
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
+  const openRefundSendModal = (refund) => {
+    setSelectedRefund(refund);
+    setRefundProofImageUrl("");
+    setRefundSendNote("");
+    setIsRefundSendModalOpen(true);
+  };
+
+  const handleConfirmRefund = async () => {
+    if (!myRefund) return;
+    try {
+      await confirmRefundReceipt.mutateAsync({ refundId: myRefund.id });
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -632,7 +866,10 @@ export const PaymentPage = () => {
               This payment page is public to open, but you need to log in to
               view payment details or submit payment.
             </p>
-            <Link to="/login" className="inline-flex">
+            <Link
+              to={`/login?returnTo=${encodeURIComponent(loginTarget)}`}
+              className="inline-flex"
+            >
               <Button>Continue to Login</Button>
             </Link>
           </div>
@@ -857,6 +1094,120 @@ export const PaymentPage = () => {
               </div>
             )}
 
+            {isCreator && eventRefundList.length > 0 && (
+              <div className="surface-card p-4">
+                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+                  Refunds
+                </h2>
+                <div className="space-y-3">
+                  {eventRefundList.map((refund) => (
+                    <div
+                      key={refund.id}
+                      className="rounded-xl border border-gray-200 p-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {refund.display_name}
+                          </p>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Refund amount {formatRupiah(refund.amount)}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Created {formatBackendTimestamp(refund.created_at)}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getRefundStatusClasses(
+                            refund.status,
+                          )}`}
+                        >
+                          {getRefundStatusText(refund.status)}
+                        </span>
+                      </div>
+
+                      {refund.recipient_payment_info && (
+                        <div className="mt-3 rounded-lg bg-gray-50 p-3">
+                          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Refund destination
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">
+                            {refund.recipient_payment_info}
+                          </p>
+                          {refund.recipient_note && (
+                            <p className="mt-2 text-xs text-gray-500">
+                              Note: {refund.recipient_note}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {refund.recipient_payment_image_url && (
+                        <img
+                          src={refund.recipient_payment_image_url}
+                          alt="Refund destination"
+                          className="mt-3 max-h-64 w-full rounded-lg border border-gray-200 object-contain bg-white"
+                        />
+                      )}
+
+                      {refund.status === "pending_info" && (
+                        <div className="mt-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+                          Waiting for the participant to submit their refund
+                          destination.
+                        </div>
+                      )}
+
+                      {refund.status === "ready_to_send" && (
+                        <div className="mt-4">
+                          <Button
+                            onClick={() => openRefundSendModal(refund)}
+                            className="w-full"
+                          >
+                            <Send className="w-4 h-4" />
+                            Send Refund
+                          </Button>
+                        </div>
+                      )}
+
+                      {refund.status === "sent" && (
+                        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                          <p className="font-medium">Refund sent</p>
+                          {refund.sent_at && (
+                            <p className="mt-1">
+                              Sent {formatBackendTimestamp(refund.sent_at)}
+                            </p>
+                          )}
+                          {refund.sent_note && (
+                            <p className="mt-1">{refund.sent_note}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {refund.status === "received" && (
+                        <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                          <p className="font-medium">Refund received</p>
+                          {refund.received_at && (
+                            <p className="mt-1">
+                              Confirmed {formatBackendTimestamp(refund.received_at)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {refund.sent_proof_image_url &&
+                        refund.status !== "ready_to_send" && (
+                          <img
+                            src={refund.sent_proof_image_url}
+                            alt="Refund proof"
+                            className="mt-3 max-h-64 w-full rounded-lg border border-gray-200 object-contain bg-white"
+                          />
+                        )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Payment Details */}
             <div className="surface-card p-4">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
@@ -959,6 +1310,18 @@ export const PaymentPage = () => {
                   <p className="text-sm font-mono bg-gray-50 p-2 rounded mt-1">
                     {payment.payment_info}
                   </p>
+                  {payment.payment_image_url && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-2">
+                        Payment image snapshot
+                      </p>
+                      <img
+                        src={payment.payment_image_url}
+                        alt="Payment method snapshot"
+                        className="max-h-64 w-full rounded-lg border border-gray-200 object-contain bg-white"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -996,17 +1359,166 @@ export const PaymentPage = () => {
               </div>
             )}
 
-            {!isCreator && userSettlement?.action === "receive_refund" && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-green-800">
-                  <PlusCircle className="w-5 h-5" />
-                  <span className="font-medium">Refund Needed</span>
+            {!isCreator && myRefund && (
+              <div className="surface-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                      Refund
+                    </h2>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatRupiah(myRefund.amount)}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getRefundStatusClasses(
+                      myRefund.status,
+                    )}`}
+                  >
+                    {getRefundStatusText(myRefund.status)}
+                  </span>
                 </div>
-                <p className="text-sm text-green-700 mt-1">
-                  You have overpaid by{" "}
-                  {formatRupiah(userSettlement.action_amount)} and the organizer
-                  can settle the refund manually.
+
+                <p className="mt-2 text-sm text-gray-600">
+                  The organizer owes you a refund for this event.
                 </p>
+
+                {myRefund.status === "pending_info" && (
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        Saved payment method
+                      </label>
+                      <select
+                        value={destinationPaymentMethodId}
+                        onChange={(e) => {
+                          const methodId = e.target.value;
+                          setDestinationPaymentMethodId(methodId);
+                          const method = paymentMethods.find(
+                            (item) => item.id === methodId,
+                          );
+                          if (method) {
+                            setDestinationPaymentInfo(method.payment_info || "");
+                            setDestinationPaymentImageUrl(
+                              method.payment_image_url || "",
+                            );
+                          }
+                        }}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="">Use custom refund destination</option>
+                        {paymentMethods.map((method) => (
+                          <option key={method.id} value={method.id}>
+                            {method.label || method.payment_info}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <Textarea
+                      label="Refund destination"
+                      rows={3}
+                      value={destinationPaymentInfo}
+                      onChange={(e) => setDestinationPaymentInfo(e.target.value)}
+                      placeholder="BCA 1234567890 a/n Your Name"
+                    />
+
+                    <Input
+                      label="Note"
+                      value={destinationNote}
+                      onChange={(e) => setDestinationNote(e.target.value)}
+                      placeholder="Optional note for the organizer"
+                    />
+
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        Refund destination image
+                      </label>
+                      <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-600 hover:border-green-400 hover:bg-green-50">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={isUploadingDestinationImage}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            handleRefundDestinationImageUpload(file);
+                            e.target.value = "";
+                          }}
+                        />
+                        {isUploadingDestinationImage
+                          ? "Uploading image..."
+                          : "Upload destination image"}
+                      </label>
+                      {destinationPaymentImageUrl && (
+                        <img
+                          src={destinationPaymentImageUrl}
+                          alt="Refund destination"
+                          className="mt-3 max-h-56 w-full rounded-lg border border-gray-200 object-contain bg-white"
+                        />
+                      )}
+                    </div>
+
+                    <Button
+                      onClick={handleSubmitRefundDestination}
+                      loading={updateRefundDestination.isPending}
+                      className="w-full"
+                    >
+                      Save Refund Destination
+                    </Button>
+                  </div>
+                )}
+
+                {myRefund.status === "ready_to_send" && (
+                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                    <p className="font-medium">Waiting for organizer</p>
+                    <p className="mt-1">
+                      Your refund destination is saved. The organizer can send
+                      the refund now.
+                    </p>
+                  </div>
+                )}
+
+                {myRefund.status === "sent" && (
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                      <p className="font-medium">Refund has been sent</p>
+                      {myRefund.sent_at && (
+                        <p className="mt-1">
+                          Sent {formatBackendTimestamp(myRefund.sent_at)}
+                        </p>
+                      )}
+                      {myRefund.sent_note && (
+                        <p className="mt-1">{myRefund.sent_note}</p>
+                      )}
+                    </div>
+                    {myRefund.sent_proof_image_url && (
+                      <img
+                        src={myRefund.sent_proof_image_url}
+                        alt="Refund proof"
+                        className="max-h-72 w-full rounded-lg border border-gray-200 object-contain bg-white"
+                      />
+                    )}
+                    <Button
+                      onClick={handleConfirmRefund}
+                      loading={confirmRefundReceipt.isPending}
+                      className="w-full"
+                    >
+                      Confirm Refund Receipt
+                    </Button>
+                  </div>
+                )}
+
+                {myRefund.status === "received" && (
+                  <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                    <p className="font-medium">Refund received</p>
+                    {myRefund.received_at && (
+                      <p className="mt-1">
+                        Confirmed {formatBackendTimestamp(myRefund.received_at)}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1367,6 +1879,31 @@ export const PaymentPage = () => {
           )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Saved Payment Method
+            </label>
+            <select
+              value={selectedPaymentMethodId}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setSelectedPaymentMethodId(nextId);
+                const method = paymentMethods.find((item) => item.id === nextId);
+                if (method) {
+                  setPaymentInfo(method.payment_info || "");
+                  setPaymentImageUrl(method.image_url || "");
+                }
+              }}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2"
+            >
+              <option value="">Choose saved payment method (optional)</option>
+              {paymentMethods.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Payment Information
             </label>
             <textarea
@@ -1376,6 +1913,31 @@ export const PaymentPage = () => {
               value={paymentInfo}
               onChange={(e) => setPaymentInfo(e.target.value)}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Payment Image (optional)
+            </label>
+            <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-300 px-4 py-4 text-sm text-gray-600 hover:border-green-400 hover:bg-green-50">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  handlePaymentImageUpload(file, false);
+                  e.target.value = "";
+                }}
+              />
+              {isUploadingPaymentImage ? "Uploading image..." : "Upload payment image"}
+            </label>
+            {paymentImageUrl && (
+              <img
+                src={paymentImageUrl}
+                alt="Payment preview"
+                className="max-h-52 w-full rounded-lg border border-gray-200 object-contain bg-white"
+              />
+            )}
           </div>
           <div className="flex gap-3 pt-2">
             <Button
@@ -1390,7 +1952,7 @@ export const PaymentPage = () => {
               onClick={handleCreatePayment}
               loading={createPayment.isPending || updateEventStatus.isPending}
               disabled={
-                !paymentInfo ||
+                (!selectedPaymentMethodId && !paymentInfo.trim()) ||
                 (paymentType === "per_person"
                   ? !perPersonAmount
                   : paymentType === "split_bill"
@@ -1506,6 +2068,31 @@ export const PaymentPage = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Saved Payment Method
+            </label>
+            <select
+              value={editedPaymentMethodId}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setEditedPaymentMethodId(nextId);
+                const method = paymentMethods.find((item) => item.id === nextId);
+                if (method) {
+                  setEditedPaymentInfo(method.payment_info || "");
+                  setEditedPaymentImageUrl(method.image_url || "");
+                }
+              }}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2"
+            >
+              <option value="">Choose saved payment method (optional)</option>
+              {paymentMethods.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Payment Information
             </label>
             <textarea
@@ -1515,6 +2102,33 @@ export const PaymentPage = () => {
               value={editedPaymentInfo}
               onChange={(e) => setEditedPaymentInfo(e.target.value)}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Payment Image (optional)
+            </label>
+            <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-300 px-4 py-4 text-sm text-gray-600 hover:border-green-400 hover:bg-green-50">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  handlePaymentImageUpload(file, true);
+                  e.target.value = "";
+                }}
+              />
+              {isUploadingEditedPaymentImage
+                ? "Uploading image..."
+                : "Upload payment image"}
+            </label>
+            {editedPaymentImageUrl && (
+              <img
+                src={editedPaymentImageUrl}
+                alt="Edited payment preview"
+                className="max-h-52 w-full rounded-lg border border-gray-200 object-contain bg-white"
+              />
+            )}
           </div>
           <div className="flex gap-3">
             <Button
@@ -1527,7 +2141,7 @@ export const PaymentPage = () => {
             <Button
               onClick={handleUpdatePaymentInfo}
               loading={updatePayment.isPending}
-              disabled={!editedPaymentInfo.trim()}
+              disabled={!editedPaymentMethodId && !editedPaymentInfo.trim()}
               className="flex-1"
             >
               Save Changes
@@ -1777,6 +2391,90 @@ export const PaymentPage = () => {
               className="flex-1"
             >
               Apply Charge
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isRefundSendModalOpen}
+        onClose={() => {
+          setIsRefundSendModalOpen(false);
+          setSelectedRefund(null);
+        }}
+        title="Send Refund"
+      >
+        <div className="space-y-4">
+          {selectedRefund && (
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-sm font-semibold text-gray-900">
+                {selectedRefund.display_name}
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Refund amount {formatRupiah(selectedRefund.amount)}
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Refund proof image
+            </label>
+            <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-600 hover:border-green-400 hover:bg-green-50">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={isUploadingRefundProof}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  handleRefundProofImageUpload(file);
+                  e.target.value = "";
+                }}
+              />
+              {isUploadingRefundProof
+                ? "Uploading proof..."
+                : "Upload refund proof"}
+            </label>
+            {refundProofImageUrl && (
+              <img
+                src={refundProofImageUrl}
+                alt="Refund proof"
+                className="mt-3 max-h-64 w-full rounded-lg border border-gray-200 object-contain bg-white"
+              />
+            )}
+          </div>
+
+          <Textarea
+            label="Send note"
+            rows={3}
+            value={refundSendNote}
+            onChange={(e) => setRefundSendNote(e.target.value)}
+            placeholder="Refund sent via BCA at 10:35 WIB"
+          />
+
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsRefundSendModalOpen(false);
+                setSelectedRefund(null);
+              }}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedRefund) return;
+                await handleMarkRefundSent(selectedRefund.id);
+                setIsRefundSendModalOpen(false);
+                setSelectedRefund(null);
+              }}
+              loading={markRefundSent.isPending}
+              className="flex-1"
+            >
+              Mark Refund as Sent
             </Button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { Avatar } from "../ui/Avatar";
+import { Brand } from "./Brand";
 
 export const PublicLayout = () => {
   const location = useLocation();
@@ -18,12 +19,7 @@ export const PublicLayout = () => {
       {!hideNavbar && (
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
           <div className="px-4 h-14 flex items-center justify-between">
-            <Link
-              to={sessionId ? "/" : "/login"}
-              className="text-lg font-bold text-green-600"
-            >
-              Kumpul
-            </Link>
+            <Brand to="/" />
 
             <div className="flex items-center gap-3">
               {sessionId ? (

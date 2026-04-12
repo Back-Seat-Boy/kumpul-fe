@@ -1,12 +1,32 @@
 import api from "./axios";
 
-export const listParticipants = async (shareToken) => {
-  const res = await api.get(`/events/${shareToken}/participants/`);
+export const listParticipants = async (shareToken, params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.set("page", params.page);
+  if (params.limit) queryParams.set("limit", params.limit);
+  if (params.mode) queryParams.set("mode", params.mode);
+  if (params.cursor) queryParams.set("cursor", params.cursor);
+  if (params.search) queryParams.set("search", params.search);
+  if (params.sort_order) queryParams.set("sort_order", params.sort_order);
+  const query = queryParams.toString();
+  const res = await api.get(
+    query ? `/events/${shareToken}/participants/?${query}` : `/events/${shareToken}/participants/`,
+  );
   return res.data.data;
 };
 
-export const listParticipantsAuthenticated = async (eventId) => {
-  const res = await api.get(`/api/events/${eventId}/participants/`);
+export const listParticipantsAuthenticated = async (eventId, params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.set("page", params.page);
+  if (params.limit) queryParams.set("limit", params.limit);
+  if (params.mode) queryParams.set("mode", params.mode);
+  if (params.cursor) queryParams.set("cursor", params.cursor);
+  if (params.search) queryParams.set("search", params.search);
+  if (params.sort_order) queryParams.set("sort_order", params.sort_order);
+  const query = queryParams.toString();
+  const res = await api.get(
+    query ? `/api/events/${eventId}/participants/?${query}` : `/api/events/${eventId}/participants/`,
+  );
   return res.data.data;
 };
 

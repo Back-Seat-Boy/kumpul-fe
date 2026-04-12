@@ -4,7 +4,7 @@ import { Avatar } from "../ui/Avatar";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
-import { formatDateTime, formatRupiah } from "../../utils/format";
+import { formatBackendTimestamp, formatRupiah } from "../../utils/format";
 import { getNudgeWhatsAppLink } from "../../api/whatsapp";
 import { generateWhatsAppShareLink } from "../../utils/whatsapp";
 import { useToastStore, getErrorMessage } from "../../utils/toast";
@@ -225,11 +225,11 @@ export const PaymentRecordRow = ({
                       Claimed {formatRupiah(claim.claimed_amount)}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Submitted {formatDateTime(claim.claimed_at)}
+                      Submitted {formatBackendTimestamp(claim.claimed_at)}
                     </p>
                     {claim.confirmed_at && (
                       <p className="text-xs text-gray-500 mt-1">
-                        Confirmed {formatDateTime(claim.confirmed_at)}
+                        Confirmed {formatBackendTimestamp(claim.confirmed_at)}
                       </p>
                     )}
                   </div>

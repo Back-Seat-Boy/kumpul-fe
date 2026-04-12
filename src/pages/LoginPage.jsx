@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { getGoogleLoginUrl } from "../api/auth";
 import { Button } from "../components/ui/Button";
-import { CalendarDays } from "lucide-react";
 import { getErrorMessage } from "../utils/toast";
 
 const LOGIN_RETURN_TO_KEY = "kumpul-login-return-to";
@@ -47,10 +46,16 @@ export const LoginPage = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <CalendarDays className="w-8 h-8 text-green-600" />
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img
+              src="/kumpul-mark.svg"
+              alt="kumpul"
+              className="h-12 w-12 rounded-xl"
+            />
+            <span className="text-3xl font-bold tracking-tight text-green-600">
+              kumpul
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Kumpul</h1>
           <p className="text-gray-500">kumpul sama temen jadi gampang.</p>
         </div>
 

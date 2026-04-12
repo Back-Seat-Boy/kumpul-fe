@@ -11,12 +11,28 @@ import {
   removeParticipant,
 } from "../api/participants";
 
-export const useParticipants = (shareToken) => {
+export const useParticipants = (shareToken, params = {}) => {
   const showError = useToastStore((state) => state.showError);
   
   return useQuery({
-    queryKey: ["event", shareToken, "participants"],
-    queryFn: () => listParticipants(shareToken),
+    queryKey: ["event", shareToken, "participants", params],
+    queryFn: () => listParticipants(shareToken, params),
+    enabled: !!shareToken,
+    select: (data) => data?.participants || [],
+    meta: {
+      onError: (error) => {
+        showError(getErrorMessage(error));
+      },
+    },
+  });
+};
+
+export const useParticipantsDirectory = (shareToken, params = {}) => {
+  const showError = useToastStore((state) => state.showError);
+
+  return useQuery({
+    queryKey: ["event", shareToken, "participants-directory", params],
+    queryFn: () => listParticipants(shareToken, params),
     enabled: !!shareToken,
     meta: {
       onError: (error) => {
@@ -36,6 +52,9 @@ export const useJoinEvent = () => {
       shareToken ? joinEventByShare(shareToken) : joinEvent(eventId),
     onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({
+        queryKey: ["event", shareToken, "participants-directory"],
+      });
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("You joined the event");
     },
@@ -54,6 +73,9 @@ export const useLeaveEvent = () => {
     mutationFn: ({ eventId, shareToken }) => leaveEvent(eventId),
     onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({
+        queryKey: ["event", shareToken, "participants-directory"],
+      });
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("You left the event");
     },
@@ -75,6 +97,9 @@ export const useAddGuestParticipant = () => {
         : addGuestParticipant(eventId, guestName),
     onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({
+        queryKey: ["event", shareToken, "participants-directory"],
+      });
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       showSuccess("Guest added");
     },
@@ -93,6 +118,9 @@ export const useRemoveParticipant = () => {
     mutationFn: ({ eventId, participantId }) => removeParticipant(eventId, participantId),
     onSuccess: (data, { eventId, shareToken, onImpact }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
+      queryClient.invalidateQueries({
+        queryKey: ["event", shareToken, "participants-directory"],
+      });
       queryClient.invalidateQueries({ queryKey: ["events", eventId, "payment"] });
       
       // Call the onImpact callback with the impacts data if provided

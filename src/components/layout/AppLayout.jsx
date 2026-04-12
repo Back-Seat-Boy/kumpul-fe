@@ -4,6 +4,7 @@ import { Calendar, MapPin, User, LogOut, Plus, Menu, X, ChevronDown } from "luci
 import { useAuthStore } from "../../store/authStore";
 import { Avatar } from "../ui/Avatar";
 import { logout } from "../../api/auth";
+import { Brand } from "./Brand";
 
 const navItems = [
   { path: "/", label: "Events", icon: Calendar },
@@ -43,12 +44,7 @@ export const AppLayout = () => {
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <Link
-              to="/"
-              className="text-lg font-bold text-green-700 tracking-tight"
-            >
-              Kumpul
-            </Link>
+            <Brand to="/" />
           </div>
 
           <div className="flex items-center gap-3">

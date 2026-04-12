@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -12,6 +12,7 @@ import {
   MinusCircle,
   AlertCircle,
   UserRound,
+  X,
 } from "lucide-react";
 import {
   useEvent,
@@ -19,6 +20,7 @@ import {
   useSetChosenOption,
   useUpdateEventSchedule,
   useEventScheduleHistory,
+  useUpdateEventImages,
 } from "../hooks/useEvents";
 import {
   useOptionsWithVoters,
@@ -29,6 +31,7 @@ import {
 import { usePayment } from "../hooks/usePayments";
 import {
   useParticipants,
+  useParticipantsDirectory,
   useJoinEvent,
   useLeaveEvent,
   useAddGuestParticipant,
@@ -53,6 +56,7 @@ import { useToastStore, getErrorMessage } from "../utils/toast";
 import { useVenues } from "../hooks/useVenues";
 import { toRFC3339 } from "../utils/format";
 import { usePageMeta } from "../hooks/usePageMeta";
+import { uploadImage } from "../api/uploads";
 
 const getEmbeddableMapUrl = (mapsUrl) => {
   if (!mapsUrl) return null;
@@ -196,6 +200,7 @@ export const EventDetailPage = () => {
   const [isJoinLoginPromptOpen, setIsJoinLoginPromptOpen] = useState(false);
   const [isProfileLoginPromptOpen, setIsProfileLoginPromptOpen] = useState(false);
   const [isCancelEventOpen, setIsCancelEventOpen] = useState(false);
+  const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
   const [isEditVoteOptionOpen, setIsEditVoteOptionOpen] = useState(false);
   const [isVoteOptionHistoryOpen, setIsVoteOptionHistoryOpen] = useState(false);
   const [editingVoteOption, setEditingVoteOption] = useState(null);
@@ -221,12 +226,25 @@ export const EventDetailPage = () => {
   const [impactData, setImpactData] = useState(null);
   const [isAddGuestOpen, setIsAddGuestOpen] = useState(false);
   const [guestName, setGuestName] = useState("");
+  const [galleryImageUrls, setGalleryImageUrls] = useState([]);
+  const [isUploadingGalleryImage, setIsUploadingGalleryImage] = useState(false);
+  const [selectedGalleryImage, setSelectedGalleryImage] = useState(null);
+  const [participantSearch, setParticipantSearch] = useState("");
+  const [debouncedParticipantSearch, setDebouncedParticipantSearch] = useState("");
+  const [participantSortOrder, setParticipantSortOrder] = useState("asc");
+  const [participantPage, setParticipantPage] = useState(1);
   const [participantToRemove, setParticipantToRemove] = useState(null);
   const [removalPreview, setRemovalPreview] = useState(null);
 
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
   const { data: options } = useOptionsWithVoters(event?.id, shareToken);
-  const { data: participants } = useParticipants(shareToken);
+  const { data: participants = [] } = useParticipants(shareToken, { limit: 100 });
+  const { data: participantDirectory } = useParticipantsDirectory(shareToken, {
+    page: participantPage,
+    limit: 10,
+    search: debouncedParticipantSearch || undefined,
+    sort_order: participantSortOrder,
+  });
   const { data: paymentData } = usePayment(
     event?.id,
     !!sessionId &&
@@ -260,6 +278,7 @@ export const EventDetailPage = () => {
   const setChosenOption = useSetChosenOption();
   const updateOption = useUpdateOption();
   const updateEventSchedule = useUpdateEventSchedule();
+  const updateEventImages = useUpdateEventImages();
 
   const isCreator = event && user && event.created_by === user.id;
   const hasJoined = participants?.some((p) => p.user_id === user?.id);
@@ -275,6 +294,29 @@ export const EventDetailPage = () => {
     isCreator &&
     event?.status !== "completed" &&
     event?.status !== "cancelled";
+  const eventImages = event?.images || [];
+  const participantDirectoryList = participantDirectory?.participants || [];
+  const participantDirectoryTotal = participantDirectory?.total || 0;
+  const participantDirectoryHasMore = participantDirectory?.has_more || false;
+  const participantPageSize = 10;
+  const visibleRegistrants = participantDirectoryList.filter(
+    (p) => p.user_id !== event?.created_by,
+  );
+  const participantRangeStart =
+    participantDirectoryTotal > 0 ? (participantPage - 1) * participantPageSize + 1 : 0;
+  const participantRangeEnd =
+    participantRangeStart > 0
+      ? participantRangeStart + visibleRegistrants.length - 1
+      : 0;
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedParticipantSearch(participantSearch.trim());
+      setParticipantPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [participantSearch]);
 
   usePageMeta({
     title: event?.title ? `${event.title} | Kumpul` : "Event Detail | Kumpul",
@@ -594,6 +636,54 @@ export const EventDetailPage = () => {
     }
   };
 
+  const handleOpenEditGallery = () => {
+    setGalleryImageUrls(eventImages.map((image) => image.image_url).slice(0, 3));
+    setIsEditGalleryOpen(true);
+  };
+
+  const handleGalleryImageUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showError("Please choose an image file");
+      return;
+    }
+    if (galleryImageUrls.length >= 3) {
+      showError("Maximum 3 gallery images");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+      const result = reader.result;
+      const base64 = result?.toString().split(",")[1];
+      if (!base64) return;
+
+      setIsUploadingGalleryImage(true);
+      try {
+        const { url } = await uploadImage(base64);
+        setGalleryImageUrls((prev) => [...prev, url].slice(0, 3));
+      } catch (error) {
+        showError(getErrorMessage(error));
+      } finally {
+        setIsUploadingGalleryImage(false);
+      }
+    };
+  };
+
+  const handleSaveGallery = async () => {
+    try {
+      await updateEventImages.mutateAsync({
+        eventId: event.id,
+        shareToken,
+        imageUrls: galleryImageUrls,
+      });
+      setIsEditGalleryOpen(false);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
+  };
+
   const handleCancelEvent = async () => {
     try {
       await updateStatus.mutateAsync({
@@ -883,6 +973,53 @@ export const EventDetailPage = () => {
           </div>
         )}
 
+        {(eventImages.length > 0 || isCreator) && (
+          <div className="surface-card p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                Event Gallery
+              </h2>
+              {isCreator && (
+                <Button
+                  variant="secondary"
+                  onClick={handleOpenEditGallery}
+                  className="px-3 py-1.5 text-xs"
+                >
+                  Edit Gallery
+                </Button>
+              )}
+            </div>
+            {eventImages.length > 0 ? (
+              <div
+                className={`grid grid-cols-1 gap-3 ${
+                  eventImages.length === 1
+                    ? ""
+                    : eventImages.length === 2
+                      ? "sm:grid-cols-2"
+                      : "sm:grid-cols-2 lg:grid-cols-3"
+                }`}
+              >
+                {eventImages.map((image) => (
+                  <button
+                    key={image.id || image.image_url}
+                    type="button"
+                    onClick={() => setSelectedGalleryImage(image.image_url)}
+                    className="overflow-hidden rounded-xl"
+                  >
+                    <img
+                      src={image.image_url}
+                      alt={event.title}
+                      className="h-44 w-full rounded-xl object-cover transition-transform hover:scale-[1.02]"
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No gallery images yet.</p>
+            )}
+          </div>
+        )}
+
         {/* Voting Section */}
         {event.status === "voting" && (
           <div className="surface-card p-4">
@@ -990,35 +1127,52 @@ export const EventDetailPage = () => {
               >
                 Edit Location & Time
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setIsScheduleHistoryOpen(true)}
-                className="flex-1"
-              >
-                View Edit Event History
-              </Button>
             </div>
           </div>
         )}
 
+        {isCreator &&
+          (event.status === "confirmed" || event.status === "open") && (
+            <div className="surface-card p-4">
+              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+                Event History
+              </h2>
+              <p className="text-sm text-gray-600 mb-3">
+                Review changes to the confirmed event schedule and location.
+              </p>
+              <Button
+                variant="ghost"
+                onClick={() => setIsScheduleHistoryOpen(true)}
+                className="w-full"
+              >
+                View Edit Event History
+              </Button>
+            </div>
+          )}
+
         {/* Participants */}
         {event.status !== "voting" && (
           <div className="surface-card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
-                Participants
-              </h2>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  {participants?.length || 0}
-                  {event.player_cap ? ` / ${event.player_cap}` : ""}
-                </span>
+            <div className="mb-4 rounded-2xl bg-gradient-to-r from-green-50 via-white to-emerald-50 p-4 ring-1 ring-green-100">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500">
+                    Registrants
+                  </h2>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">
+                    {participantDirectoryTotal} registered
+                    {event.player_cap ? ` of ${event.player_cap} spots` : ""}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Browse who has joined, search by name, or sort the list.
+                  </p>
+                </div>
                 {canAddGuest && (
                   <Button
                     variant="secondary"
                     onClick={() => setIsAddGuestOpen(true)}
                     disabled={isJoinBlocked}
-                    className="px-3 py-1.5 text-xs"
+                    className="px-3 py-2 text-sm sm:self-center"
                   >
                     Add Guest
                   </Button>
@@ -1027,7 +1181,7 @@ export const EventDetailPage = () => {
             </div>
 
             {creatorParticipant && (
-              <div className="flex items-center gap-2 mb-3 p-2 bg-amber-50 rounded-lg border border-amber-100">
+              <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 p-3">
                 <Avatar
                   src={creatorParticipant.user?.avatar_url}
                   name={creatorParticipant.user?.name}
@@ -1047,10 +1201,39 @@ export const EventDetailPage = () => {
               </div>
             )}
 
+            <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+              <div className="flex flex-col gap-3 md:flex-row">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Search
+                  </label>
+                  <Input
+                    placeholder="Search registrant name"
+                    value={participantSearch}
+                    onChange={(e) => setParticipantSearch(e.target.value)}
+                  />
+                </div>
+                <div className="md:w-48">
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Sort
+                  </label>
+                  <select
+                    value={participantSortOrder}
+                    onChange={(e) => {
+                      setParticipantSortOrder(e.target.value);
+                      setParticipantPage(1);
+                    }}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="asc">Name A-Z</option>
+                    <option value="desc">Name Z-A</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <ParticipantList
-              participants={participants?.filter(
-                (p) => p.user_id !== event.created_by,
-              )}
+              participants={visibleRegistrants}
               isCreatorId={event.created_by}
               isCreator={isCreator}
               onRemove={openRemoveParticipantModal}
@@ -1059,19 +1242,38 @@ export const EventDetailPage = () => {
               }
               eventId={event.id}
               eventStatus={event.status}
-              maxDisplay={showAllParticipants ? 100 : 5}
+              maxDisplay={100}
+              variant="directory"
             />
 
-            {participants && participants.length > 6 && (
-              <button
-                onClick={() => setShowAllParticipants(!showAllParticipants)}
-                className="text-sm text-green-600 hover:text-green-700 mt-3"
-              >
-                {showAllParticipants
-                  ? "Show less"
-                  : `Show all ${participants.length} registrants`}
-              </button>
-            )}
+            <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-gray-500">
+                {participantRangeStart > 0
+                  ? `Showing ${participantRangeStart}-${participantRangeEnd} of ${participantDirectoryTotal} registrants`
+                  : "No registrants found"}
+              </p>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <Button
+                  variant="secondary"
+                  onClick={() => setParticipantPage((prev) => Math.max(1, prev - 1))}
+                  disabled={participantPage <= 1}
+                  className="px-3 py-1.5 text-xs"
+                >
+                  Prev
+                </Button>
+                <span className="min-w-16 text-center text-xs font-medium text-gray-500">
+                  Page {participantPage}
+                </span>
+                <Button
+                  variant="secondary"
+                  onClick={() => setParticipantPage((prev) => prev + 1)}
+                  disabled={!participantDirectoryHasMore}
+                  className="px-3 py-1.5 text-xs"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
 
             {isJoinBlocked && (
               <p className="text-xs text-red-500 mt-3">{joinBlockedReason}</p>
@@ -1097,7 +1299,46 @@ export const EventDetailPage = () => {
           </div>
         )}
 
-        {canCancelEvent && (
+        {/* Creator: Open Payment */}
+        {isCreator && event.status === "open" && (
+          <>
+            <div className="surface-card p-4">
+              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+                Ready to collect payment?
+              </h2>
+              <div className="space-y-2">
+                <Button
+                  variant="primary"
+                  onClick={handleOpenPayment}
+                  className="w-full"
+                >
+                  Open Payment
+                </Button>
+              </div>
+            </div>
+
+            {canCancelEvent && (
+              <div className="surface-card p-4">
+                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+                  Event Management
+                </h2>
+                <p className="text-sm text-gray-600 mb-3">
+                  Need to stop this event? You can cancel it so no one can vote,
+                  join, or continue payment actions.
+                </p>
+                <Button
+                  variant="danger"
+                  onClick={() => setIsCancelEventOpen(true)}
+                  className="w-full"
+                >
+                  Cancel Event
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+
+        {canCancelEvent && event.status !== "open" && (
           <div className="surface-card p-4">
             <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
               Event Management
@@ -1113,31 +1354,6 @@ export const EventDetailPage = () => {
             >
               Cancel Event
             </Button>
-          </div>
-        )}
-
-        {/* Creator: Open Payment */}
-        {isCreator && event.status === "open" && (
-          <div className="surface-card p-4">
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-              Ready to collect payment?
-            </h2>
-            <div className="space-y-2">
-              <Button
-                variant="primary"
-                onClick={handleOpenPayment}
-                className="w-full"
-              >
-                Open Payment
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setIsScheduleHistoryOpen(true)}
-                className="w-full"
-              >
-                View Edit Event History
-              </Button>
-            </div>
           </div>
         )}
       </div>
@@ -1290,6 +1506,99 @@ export const EventDetailPage = () => {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditGalleryOpen}
+        onClose={() => setIsEditGalleryOpen(false)}
+        title="Edit Event Gallery"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Upload or remove event gallery images. Maximum 3 images.
+          </p>
+          <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-600 hover:border-green-400 hover:bg-green-50">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={isUploadingGalleryImage || galleryImageUrls.length >= 3}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                handleGalleryImageUpload(file);
+                e.target.value = "";
+              }}
+            />
+            {isUploadingGalleryImage
+              ? "Uploading image..."
+              : galleryImageUrls.length >= 3
+                ? "Gallery limit reached"
+                : "Upload image"}
+          </label>
+          {galleryImageUrls.length > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              {galleryImageUrls.map((url, index) => (
+                <div key={`${url}-${index}`} className="relative">
+                  <img
+                    src={url}
+                    alt={`Gallery ${index + 1}`}
+                    className="h-24 w-full rounded-lg object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGalleryImageUrls((prev) =>
+                        prev.filter((_, itemIndex) => itemIndex !== index),
+                      )
+                    }
+                    className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsEditGalleryOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveGallery}
+              loading={updateEventImages.isPending}
+              className="flex-1"
+            >
+              Save Gallery
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!selectedGalleryImage}
+        onClose={() => setSelectedGalleryImage(null)}
+        title="Event Image"
+      >
+        {selectedGalleryImage && (
+          <div className="space-y-4">
+            <img
+              src={selectedGalleryImage}
+              alt={event?.title || "Event gallery"}
+              className="max-h-[70vh] w-full rounded-xl object-contain bg-black/5"
+            />
+            <Button
+              variant="secondary"
+              onClick={() => setSelectedGalleryImage(null)}
+              className="w-full"
+            >
+              Close
+            </Button>
+          </div>
+        )}
       </Modal>
 
       <Modal

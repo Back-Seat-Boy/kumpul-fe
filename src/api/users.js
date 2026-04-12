@@ -24,3 +24,23 @@ export const listUserParticipatedEvents = async (userId) => {
   const res = await api.get(`/api/users/${userId}/events/participated/`);
   return res.data.data;
 };
+
+export const listMyPaymentMethods = async () => {
+  const res = await api.get("/api/users/me/payment-methods/");
+  return res.data.data;
+};
+
+export const createMyPaymentMethod = async (data) => {
+  const res = await api.post("/api/users/me/payment-methods/", data);
+  return res.data.data;
+};
+
+export const updateMyPaymentMethod = async (id, data) => {
+  const res = await api.patch(`/api/users/me/payment-methods/${id}/`, data);
+  return res.data.data;
+};
+
+export const deleteMyPaymentMethod = async (id) => {
+  const res = await api.delete(`/api/users/me/payment-methods/${id}/`);
+  return res.data;
+};

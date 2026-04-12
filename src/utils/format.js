@@ -60,6 +60,29 @@ export const formatDateTime = (dateStr) => {
   }).format(new Date(dateStr));
 };
 
+export const formatBackendTimestamp = (timestamp) => {
+  if (!timestamp) return "-";
+
+  const match = timestamp.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/,
+  );
+
+  if (!match) return timestamp;
+
+  const [, year, month, day, hour, minute] = match;
+  const utcDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const weekday = new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    timeZone: "UTC",
+  }).format(utcDate);
+  const monthName = new Intl.DateTimeFormat("id-ID", {
+    month: "long",
+    timeZone: "UTC",
+  }).format(utcDate);
+
+  return `${weekday}, ${Number(day)} ${monthName} ${year} ${hour}:${minute}`;
+};
+
 export const toRFC3339 = (datetimeLocal, timezoneOffsetMinutes = -420) => {
   if (!datetimeLocal) return null;
   

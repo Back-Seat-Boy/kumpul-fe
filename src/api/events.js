@@ -30,6 +30,13 @@ export const createEvent = async (data) => {
   return res.data.data;
 };
 
+export const updateEventImages = async (eventId, imageUrls) => {
+  const res = await api.patch(`/api/events/${eventId}/images/`, {
+    image_urls: imageUrls,
+  });
+  return res.data.data;
+};
+
 export const updateEventStatus = async (eventId, status) => {
   const res = await api.patch(`/api/events/${eventId}/status/`, { status });
   return res.data;

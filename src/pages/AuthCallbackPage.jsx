@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { Spinner } from "../components/ui/Spinner";
+import { getMe } from "../api/users";
 
 const LOGIN_RETURN_TO_KEY = "kumpul-login-return-to";
 
@@ -12,46 +13,56 @@ export const AuthCallbackPage = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const sessionId = searchParams.get("session_id");
-    const errorMsg = searchParams.get("error");
-    const expiresAt = searchParams.get("expires_at");
-    const returnTo = sessionStorage.getItem(LOGIN_RETURN_TO_KEY) || "/";
+    let isActive = true;
 
-    if (errorMsg) {
-      setError(decodeURIComponent(errorMsg));
-      setTimeout(() => {
-        navigate("/login");
-      }, 3000);
-      return;
-    }
+    const completeLogin = async () => {
+      const sessionId = searchParams.get("session_id");
+      const errorMsg = searchParams.get("error");
+      const expiresAt = searchParams.get("expires_at");
+      const returnTo = sessionStorage.getItem(LOGIN_RETURN_TO_KEY) || "/";
 
-    // Check if session is expired
-    if (expiresAt) {
-      const expiryDate = new Date(expiresAt);
-      const now = new Date();
-      
-      if (expiryDate <= now) {
-        setError("Session has expired. Please login again.");
+      if (errorMsg) {
+        setError(decodeURIComponent(errorMsg));
         setTimeout(() => {
           navigate("/login");
         }, 3000);
         return;
       }
-    }
 
-    if (sessionId) {
-      // Build user object from individual query params
-      const user = {
+      if (expiresAt) {
+        const expiryDate = new Date(expiresAt);
+        const now = new Date();
+
+        if (expiryDate <= now) {
+          setError("Session has expired. Please login again.");
+          setTimeout(() => {
+            navigate("/login");
+          }, 3000);
+          return;
+        }
+      }
+
+      if (!sessionId) {
+        setError("Missing session ID");
+        setTimeout(() => {
+          navigate("/login");
+        }, 3000);
+        return;
+      }
+
+      const callbackUser = {
         id: searchParams.get("user_id"),
         name: decodeURIComponent(searchParams.get("user_name") || ""),
         email: decodeURIComponent(searchParams.get("user_email") || ""),
         email_verified: searchParams.get("email_verified") === "true",
+        whatsapp_number: decodeURIComponent(
+          searchParams.get("whatsapp_number") || "",
+        ),
         avatar_url: decodeURIComponent(searchParams.get("avatar_url") || ""),
       };
 
-      // Validate we have required fields
-      if (!user.id || !user.name || !user.email) {
-        console.error("Missing user data from callback:", user);
+      if (!callbackUser.id || !callbackUser.name || !callbackUser.email) {
+        console.error("Missing user data from callback:", callbackUser);
         setError("Incomplete user data received");
         setTimeout(() => {
           navigate("/login");
@@ -59,15 +70,30 @@ export const AuthCallbackPage = () => {
         return;
       }
 
-      setSession(sessionId, user, expiresAt);
+      // Bootstrap auth from callback, then immediately refresh profile
+      // from /api/users/me/ as the backend source of truth.
+      setSession(sessionId, callbackUser, expiresAt);
+
+      try {
+        const fullProfile = await getMe();
+        if (isActive) {
+          setSession(sessionId, fullProfile, expiresAt);
+        }
+      } catch (profileError) {
+        console.error("Failed to refresh profile after login:", profileError);
+      }
+
+      if (!isActive) return;
+
       sessionStorage.removeItem(LOGIN_RETURN_TO_KEY);
       navigate(returnTo, { replace: true });
-    } else {
-      setError("Missing session ID");
-      setTimeout(() => {
-        navigate("/login");
-      }, 3000);
-    }
+    };
+
+    completeLogin();
+
+    return () => {
+      isActive = false;
+    };
   }, [searchParams, setSession, navigate]);
 
   if (error) {
