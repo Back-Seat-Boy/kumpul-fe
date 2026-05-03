@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link, useLocation } from "react-router-dom";
+import { useParams, Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle,
@@ -233,9 +233,17 @@ const readFileAsBase64 = (file) =>
     reader.onerror = reject;
   });
 
+const PAYMENT_RECORD_STATUS_FILTERS = [
+  { value: "", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "claimed", label: "Claimed" },
+  { value: "confirmed", label: "Confirmed" },
+];
+
 export const PaymentPage = () => {
   const { shareToken } = useParams();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const sessionId = useAuthStore((state) => state.sessionId);
   const showError = useToastStore((state) => state.showError);
@@ -296,7 +304,19 @@ export const PaymentPage = () => {
   const { data: event } = useEvent(shareToken);
   const isCreator = !!event && !!user && event.created_by === user.id;
   const { data: participants = [] } = useParticipants(shareToken);
+  const rawPaymentRecordStatus = searchParams.get("status") || "";
+  const paymentRecordStatus = PAYMENT_RECORD_STATUS_FILTERS.some(
+    (filter) => filter.value === rawPaymentRecordStatus,
+  )
+    ? rawPaymentRecordStatus
+    : "";
   const { data: paymentData, isLoading } = usePayment(event?.id, !!sessionId);
+  const {
+    data: filteredPaymentData,
+    isFetching: isFilteringPaymentRecords,
+  } = usePayment(event?.id, !!sessionId && !!paymentRecordStatus, {
+    status: paymentRecordStatus,
+  });
   const { data: paymentMethods = [] } = useMyPaymentMethods(!!sessionId);
   const { data: eventRefunds = [] } = useEventRefunds(
     event?.id,
@@ -321,8 +341,17 @@ export const PaymentPage = () => {
   const records = paymentData?.records || [];
   const summary = paymentData?.summary;
   const perPersonStatus = summary?.per_person_status || [];
+  const displayedRecords = paymentRecordStatus
+    ? filteredPaymentData?.records || []
+    : records;
+  const displayedPerPersonStatus = paymentRecordStatus
+    ? filteredPaymentData?.summary?.per_person_status || []
+    : perPersonStatus;
   const perPersonStatusMap = new Map(
     perPersonStatus.map((person) => [person.participant_id, person]),
+  );
+  const displayedPerPersonStatusMap = new Map(
+    displayedPerPersonStatus.map((person) => [person.participant_id, person]),
   );
   const unsettledPeople = perPersonStatus.filter(
     (person) => person.action !== "no_action",
@@ -400,6 +429,19 @@ export const PaymentPage = () => {
   const pendingCount =
     summary?.num_pending ??
     records.filter((r) => r.status === "pending").length;
+  const paymentRecordFilterOptions = PAYMENT_RECORD_STATUS_FILTERS.map(
+    (filter) => ({
+      ...filter,
+      count:
+        filter.value === "pending"
+          ? pendingCount
+          : filter.value === "claimed"
+            ? claimedCount
+            : filter.value === "confirmed"
+              ? confirmedCount
+              : summary?.num_participants ?? records.length,
+    }),
+  );
 
   const userRecord = records.find((r) => r.participant?.user_id === user?.id);
   const userSettlement = userRecord
@@ -417,6 +459,19 @@ export const PaymentPage = () => {
     userRecord &&
     (userSettlement?.action === "pay_full" ||
       userSettlement?.action === "pay_more");
+
+  const handlePaymentRecordStatusChange = (nextStatus) => {
+    const next = new URLSearchParams(searchParams);
+
+    if (nextStatus) {
+      next.set("status", nextStatus);
+    } else {
+      next.delete("status");
+    }
+
+    setSearchParams(next, { replace: true });
+  };
+
   useEffect(() => {
     if (!myRefund) return;
     setDestinationPaymentMethodId(myRefund.recipient_payment_method_id || "");
@@ -1571,9 +1626,35 @@ export const PaymentPage = () => {
 
             {/* Payment Records */}
             <div className="surface-card p-4">
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-                Payment Records
-              </h2>
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                  Payment Records
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {paymentRecordFilterOptions.map((filter) => {
+                    const isActive = paymentRecordStatus === filter.value;
+                    return (
+                      <button
+                        key={filter.value || "all"}
+                        type="button"
+                        onClick={() =>
+                          handlePaymentRecordStatusChange(filter.value)
+                        }
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          isActive
+                            ? "border-green-600 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        {filter.label}
+                        <span className="ml-1 text-gray-400">
+                          {filter.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {payment.type === "split_bill" && splitBillData && (
                 <div className="mb-3 rounded-lg border border-gray-200 p-3">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
@@ -1679,40 +1760,54 @@ export const PaymentPage = () => {
                   )}
                 </div>
               )}
-              <div className="space-y-2">
-                {records.map((record) => (
-                  <PaymentRecordRow
-                    key={record.id}
-                    record={record}
-                    settlement={perPersonStatusMap.get(record.participant_id)}
-                    isCreator={isCreator}
-                    allowEdit={payment?.type !== "split_bill"}
-                    onConfirm={handleConfirmPayment}
-                    onEdit={(currentRecord) =>
-                      openAdjustModal({
-                        participant_id: currentRecord.participant_id,
-                        display_name: currentRecord.participant?.is_guest
-                          ? currentRecord.participant?.guest_name
-                          : currentRecord.participant?.user?.name,
-                        amount: currentRecord.amount,
-                        paid_amount: currentRecord.paid_amount,
-                        base_split: payment.base_split,
-                        note: currentRecord.note,
-                        action: perPersonStatusMap.get(
-                          currentRecord.participant_id,
-                        )?.action,
-                        action_amount: perPersonStatusMap.get(
-                          currentRecord.participant_id,
-                        )?.action_amount,
-                      })
-                    }
-                    eventId={event.id}
-                    eventName={event.title}
-                    shareToken={shareToken}
-                    eventStatus={event.status}
-                  />
-                ))}
-              </div>
+              {paymentRecordStatus &&
+              isFilteringPaymentRecords &&
+              !filteredPaymentData ? (
+                <div className="flex justify-center py-6">
+                  <Spinner />
+                </div>
+              ) : displayedRecords.length === 0 ? (
+                <p className="rounded-lg bg-gray-50 px-3 py-4 text-center text-sm text-gray-500">
+                  No payment records found.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {displayedRecords.map((record) => (
+                    <PaymentRecordRow
+                      key={record.id}
+                      record={record}
+                      settlement={displayedPerPersonStatusMap.get(
+                        record.participant_id,
+                      )}
+                      isCreator={isCreator}
+                      allowEdit={payment?.type !== "split_bill"}
+                      onConfirm={handleConfirmPayment}
+                      onEdit={(currentRecord) =>
+                        openAdjustModal({
+                          participant_id: currentRecord.participant_id,
+                          display_name: currentRecord.participant?.is_guest
+                            ? currentRecord.participant?.guest_name
+                            : currentRecord.participant?.user?.name,
+                          amount: currentRecord.amount,
+                          paid_amount: currentRecord.paid_amount,
+                          base_split: payment.base_split,
+                          note: currentRecord.note,
+                          action: displayedPerPersonStatusMap.get(
+                            currentRecord.participant_id,
+                          )?.action,
+                          action_amount: displayedPerPersonStatusMap.get(
+                            currentRecord.participant_id,
+                          )?.action_amount,
+                        })
+                      }
+                      eventId={event.id}
+                      eventName={event.title}
+                      shareToken={shareToken}
+                      eventStatus={event.status}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}

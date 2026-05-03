@@ -4,6 +4,7 @@ import {
   listEvents,
   getEvent,
   createEvent,
+  updateEventDetails,
   updateEventStatus,
   setChosenOption,
   updateEventSchedule,
@@ -87,6 +88,24 @@ export const useCreateEvent = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       showSuccess("Event created successfully");
+    },
+    onError: (error) => {
+      showError(getErrorMessage(error));
+    },
+  });
+};
+
+export const useUpdateEventDetails = () => {
+  const queryClient = useQueryClient();
+  const showError = useToastStore((state) => state.showError);
+  const showSuccess = useToastStore((state) => state.showSuccess);
+
+  return useMutation({
+    mutationFn: ({ eventId, data }) => updateEventDetails(eventId, data),
+    onSuccess: (_, { shareToken }) => {
+      queryClient.invalidateQueries({ queryKey: ["event", shareToken] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      showSuccess("Event details updated");
     },
     onError: (error) => {
       showError(getErrorMessage(error));

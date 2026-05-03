@@ -12,10 +12,12 @@ import {
   MinusCircle,
   AlertCircle,
   UserRound,
+  Pencil,
   X,
 } from "lucide-react";
 import {
   useEvent,
+  useUpdateEventDetails,
   useUpdateEventStatus,
   useSetChosenOption,
   useUpdateEventSchedule,
@@ -50,6 +52,7 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { Spinner } from "../components/ui/Spinner";
+import { Textarea } from "../components/ui/Textarea";
 import { formatDate, formatDateTime, formatRupiah } from "../utils/format";
 import { getVenueWhatsAppLink } from "../api/whatsapp";
 import { useToastStore, getErrorMessage } from "../utils/toast";
@@ -200,6 +203,11 @@ export const EventDetailPage = () => {
   const [isJoinLoginPromptOpen, setIsJoinLoginPromptOpen] = useState(false);
   const [isProfileLoginPromptOpen, setIsProfileLoginPromptOpen] = useState(false);
   const [isCancelEventOpen, setIsCancelEventOpen] = useState(false);
+  const [isEditDetailsOpen, setIsEditDetailsOpen] = useState(false);
+  const [editDetailsForm, setEditDetailsForm] = useState({
+    title: "",
+    description: "",
+  });
   const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
   const [isEditVoteOptionOpen, setIsEditVoteOptionOpen] = useState(false);
   const [isVoteOptionHistoryOpen, setIsVoteOptionHistoryOpen] = useState(false);
@@ -274,6 +282,7 @@ export const EventDetailPage = () => {
   const removalImpact = useRemovalImpact();
   const castVote = useCastVote();
   const removeVote = useRemoveVote();
+  const updateEventDetails = useUpdateEventDetails();
   const updateStatus = useUpdateEventStatus();
   const setChosenOption = useSetChosenOption();
   const updateOption = useUpdateOption();
@@ -534,6 +543,48 @@ export const EventDetailPage = () => {
 
   const handleOpenPayment = () => {
     navigate(`/events/${shareToken}/payment`);
+  };
+
+  const handleOpenEditDetails = () => {
+    setEditDetailsForm({
+      title: event.title || "",
+      description: event.description || "",
+    });
+    setIsEditDetailsOpen(true);
+  };
+
+  const handleSubmitEventDetails = async () => {
+    const nextTitle = editDetailsForm.title.trim();
+    const nextDescription = editDetailsForm.description.trim();
+
+    if (!nextTitle) {
+      showError("Title cannot be empty");
+      return;
+    }
+
+    const payload = {};
+    if (nextTitle !== (event.title || "")) {
+      payload.title = nextTitle;
+    }
+    if (nextDescription !== (event.description || "")) {
+      payload.description = nextDescription;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setIsEditDetailsOpen(false);
+      return;
+    }
+
+    try {
+      await updateEventDetails.mutateAsync({
+        eventId: event.id,
+        shareToken,
+        data: payload,
+      });
+      setIsEditDetailsOpen(false);
+    } catch (error) {
+      showError(getErrorMessage(error));
+    }
   };
 
   const normalizeTimeValue = (value) => {
@@ -837,13 +888,23 @@ export const EventDetailPage = () => {
             <EventStatusBadge status={event.status} />
           </div>
 
-          <div className="flex items-center gap-3 mt-4">
+          <div className="flex flex-wrap items-center gap-3 mt-4">
             <ShareButton
               shareToken={event.share_token}
               event={event}
               chosenOption={chosenOption}
               payment={paymentData?.payment}
             />
+            {isCreator && event.status !== "cancelled" && (
+              <Button
+                variant="secondary"
+                onClick={handleOpenEditDetails}
+                className="px-3"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit Details
+              </Button>
+            )}
             {/* Join/Leave only allowed when status is open or payment_open */}
             {!isCreator && isJoinableStatus && (
                 <Button
@@ -1503,6 +1564,55 @@ export const EventDetailPage = () => {
               className="flex-1"
             >
               Yes, Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditDetailsOpen}
+        onClose={() => setIsEditDetailsOpen(false)}
+        title="Edit Event Details"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Title"
+            required
+            value={editDetailsForm.title}
+            onChange={(e) =>
+              setEditDetailsForm((prev) => ({
+                ...prev,
+                title: e.target.value,
+              }))
+            }
+          />
+          <Textarea
+            label="Description"
+            rows={4}
+            value={editDetailsForm.description}
+            onChange={(e) =>
+              setEditDetailsForm((prev) => ({
+                ...prev,
+                description: e.target.value,
+              }))
+            }
+            placeholder="Optional event description"
+          />
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsEditDetailsOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitEventDetails}
+              loading={updateEventDetails.isPending}
+              disabled={!editDetailsForm.title.trim()}
+              className="flex-1"
+            >
+              Save Details
             </Button>
           </div>
         </div>

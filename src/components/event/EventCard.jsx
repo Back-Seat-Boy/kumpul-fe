@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Calendar, MapPin, Users, Crown, Clock, CheckCircle, CreditCard } from "lucide-react";
+import { Calendar, MapPin, Users, Crown, Clock, CreditCard, XCircle } from "lucide-react";
 import { EventStatusBadge } from "./EventStatusBadge";
 import { Avatar } from "../ui/Avatar";
 import { formatDate } from "../../utils/format";
@@ -96,6 +96,24 @@ export const EventCard = ({ event, hideCreatorInfo = false }) => {
                     <span className="text-gray-400 ml-1">{event.pending_count} unpaid</span>
                   )}
                 </span>
+              </div>
+            )}
+          </>
+        );
+
+      case "cancelled":
+        return (
+          <>
+            {event.cancelled_at && (
+              <div className="flex items-center gap-1.5">
+                <XCircle className="w-4 h-4 text-red-400" />
+                <span>Cancelled {formatDate(event.cancelled_at)}</span>
+              </div>
+            )}
+            {event.participant_count !== undefined && (
+              <div className="flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-gray-400" />
+                <span>{event.participant_count} joined</span>
               </div>
             )}
           </>

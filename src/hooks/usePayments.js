@@ -11,12 +11,13 @@ import {
   adjustPayment,
 } from "../api/payments";
 
-export const usePayment = (eventId, enabled = true) => {
+export const usePayment = (eventId, enabled = true, params = {}) => {
   const showError = useToastStore((state) => state.showError);
+  const status = params.status || "";
   
   return useQuery({
-    queryKey: ["events", eventId, "payment"],
-    queryFn: () => getPayment(eventId),
+    queryKey: ["events", eventId, "payment", { status }],
+    queryFn: () => getPayment(eventId, { status: status || undefined }),
     enabled: !!eventId && enabled,
     meta: {
       onError: (error) => {

@@ -1,7 +1,15 @@
 import api from "./axios";
 
-export const getPayment = async (eventId) => {
-  const res = await api.get(`/api/events/${eventId}/payment/`);
+export const getPayment = async (eventId, params = {}) => {
+  const queryParams = new URLSearchParams();
+
+  if (params.status) queryParams.set("status", params.status);
+
+  const query = queryParams.toString();
+  const url = query
+    ? `/api/events/${eventId}/payment/?${query}`
+    : `/api/events/${eventId}/payment/`;
+  const res = await api.get(url);
   return res.data.data;
 };
 
