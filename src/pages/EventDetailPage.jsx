@@ -201,7 +201,8 @@ export const EventDetailPage = () => {
   const [isCloseVotingOpen, setIsCloseVotingOpen] = useState(false);
   const [isVoteLoginPromptOpen, setIsVoteLoginPromptOpen] = useState(false);
   const [isJoinLoginPromptOpen, setIsJoinLoginPromptOpen] = useState(false);
-  const [isProfileLoginPromptOpen, setIsProfileLoginPromptOpen] = useState(false);
+  const [isProfileLoginPromptOpen, setIsProfileLoginPromptOpen] =
+    useState(false);
   const [isCancelEventOpen, setIsCancelEventOpen] = useState(false);
   const [isEditDetailsOpen, setIsEditDetailsOpen] = useState(false);
   const [editDetailsForm, setEditDetailsForm] = useState({
@@ -238,7 +239,8 @@ export const EventDetailPage = () => {
   const [isUploadingGalleryImage, setIsUploadingGalleryImage] = useState(false);
   const [selectedGalleryImage, setSelectedGalleryImage] = useState(null);
   const [participantSearch, setParticipantSearch] = useState("");
-  const [debouncedParticipantSearch, setDebouncedParticipantSearch] = useState("");
+  const [debouncedParticipantSearch, setDebouncedParticipantSearch] =
+    useState("");
   const [participantSortOrder, setParticipantSortOrder] = useState("asc");
   const [participantPage, setParticipantPage] = useState(1);
   const [participantToRemove, setParticipantToRemove] = useState(null);
@@ -246,7 +248,9 @@ export const EventDetailPage = () => {
 
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
   const { data: options } = useOptionsWithVoters(event?.id, shareToken);
-  const { data: participants = [] } = useParticipants(shareToken, { limit: 100 });
+  const { data: participants = [] } = useParticipants(shareToken, {
+    limit: 100,
+  });
   const { data: participantDirectory } = useParticipantsDirectory(shareToken, {
     page: participantPage,
     limit: 10,
@@ -263,11 +267,7 @@ export const EventDetailPage = () => {
   });
   const venues = venuesData?.venues || [];
   const { data: scheduleHistory = [], isLoading: isLoadingScheduleHistory } =
-    useEventScheduleHistory(
-      event?.id,
-      isScheduleHistoryOpen,
-      shareToken,
-    );
+    useEventScheduleHistory(event?.id, isScheduleHistoryOpen, shareToken);
   const {
     data: optionEditHistory = [],
     isLoading: isLoadingOptionEditHistory,
@@ -292,17 +292,13 @@ export const EventDetailPage = () => {
   const isCreator = event && user && event.created_by === user.id;
   const hasJoined = participants?.some((p) => p.user_id === user?.id);
   const isJoinableStatus =
-    (event?.status === "confirmed" ||
-      event?.status === "open" ||
-      event?.status === "payment_open");
+    event?.status === "confirmed" ||
+    event?.status === "open" ||
+    event?.status === "payment_open";
   const canAddGuest =
-    !!sessionId &&
-    isJoinableStatus &&
-    (isCreator || hasJoined);
+    !!sessionId && isJoinableStatus && (isCreator || hasJoined);
   const canCancelEvent =
-    isCreator &&
-    event?.status !== "completed" &&
-    event?.status !== "cancelled";
+    isCreator && event?.status !== "completed" && event?.status !== "cancelled";
   const eventImages = event?.images || [];
   const participantDirectoryList = participantDirectory?.participants || [];
   const participantDirectoryTotal = participantDirectory?.total || 0;
@@ -312,7 +308,9 @@ export const EventDetailPage = () => {
     (p) => p.user_id !== event?.created_by,
   );
   const participantRangeStart =
-    participantDirectoryTotal > 0 ? (participantPage - 1) * participantPageSize + 1 : 0;
+    participantDirectoryTotal > 0
+      ? (participantPage - 1) * participantPageSize + 1
+      : 0;
   const participantRangeEnd =
     participantRangeStart > 0
       ? participantRangeStart + visibleRegistrants.length - 1
@@ -359,12 +357,17 @@ export const EventDetailPage = () => {
   }
 
   const nowMs = Date.now();
-  const deadlineDate = event.voting_deadline ? new Date(event.voting_deadline) : null;
-  const hasValidDeadline = !!deadlineDate && !Number.isNaN(deadlineDate.getTime());
+  const deadlineDate = event.voting_deadline
+    ? new Date(event.voting_deadline)
+    : null;
+  const hasValidDeadline =
+    !!deadlineDate && !Number.isNaN(deadlineDate.getTime());
   const deadlineMs = hasValidDeadline ? deadlineDate.getTime() : null;
   const isDeadlineReached = hasValidDeadline ? nowMs >= deadlineMs : false;
   const isDeadlineNear =
-    hasValidDeadline && !isDeadlineReached && deadlineMs - nowMs <= 24 * 60 * 60 * 1000;
+    hasValidDeadline &&
+    !isDeadlineReached &&
+    deadlineMs - nowMs <= 24 * 60 * 60 * 1000;
   const isVotingPhase = event.status === "voting";
   const isVotingDeadlineReached = isVotingPhase && isDeadlineReached;
   const isVotingDeadlineNear = isVotingPhase && isDeadlineNear;
@@ -374,8 +377,11 @@ export const EventDetailPage = () => {
   const hasPlayerCap = Number.isFinite(playerCap) && playerCap > 0;
   const remainingSlots = hasPlayerCap ? playerCap - participantCount : null;
   const isCapReached = hasPlayerCap && remainingSlots <= 0;
-  const capNearThreshold = hasPlayerCap ? Math.max(1, Math.ceil(playerCap * 0.2)) : 0;
-  const isCapNear = hasPlayerCap && !isCapReached && remainingSlots <= capNearThreshold;
+  const capNearThreshold = hasPlayerCap
+    ? Math.max(1, Math.ceil(playerCap * 0.2))
+    : 0;
+  const isCapNear =
+    hasPlayerCap && !isCapReached && remainingSlots <= capNearThreshold;
 
   const joinBlockedReason = isCapReached
     ? "Registration is closed because participant cap has been reached."
@@ -688,7 +694,9 @@ export const EventDetailPage = () => {
   };
 
   const handleOpenEditGallery = () => {
-    setGalleryImageUrls(eventImages.map((image) => image.image_url).slice(0, 3));
+    setGalleryImageUrls(
+      eventImages.map((image) => image.image_url).slice(0, 3),
+    );
     setIsEditGalleryOpen(true);
   };
 
@@ -777,38 +785,39 @@ export const EventDetailPage = () => {
     : participantToRemove?.user?.name;
   const scheduleHasCoreChanges = Boolean(
     chosenOption &&
-      (scheduleForm.venueId !==
-        (chosenOption.venue?.id || chosenOption.venue_id || "") ||
-        scheduleForm.date !== (chosenOption.date ? chosenOption.date.slice(0, 10) : "") ||
-        scheduleForm.startTime !== normalizeTimeValue(chosenOption.start_time) ||
-        scheduleForm.endTime !== normalizeTimeValue(chosenOption.end_time)),
+    (scheduleForm.venueId !==
+      (chosenOption.venue?.id || chosenOption.venue_id || "") ||
+      scheduleForm.date !==
+        (chosenOption.date ? chosenOption.date.slice(0, 10) : "") ||
+      scheduleForm.startTime !== normalizeTimeValue(chosenOption.start_time) ||
+      scheduleForm.endTime !== normalizeTimeValue(chosenOption.end_time)),
   );
   const canSubmitScheduleUpdate = Boolean(
     scheduleForm.venueId &&
-      scheduleForm.date &&
-      scheduleForm.startTime &&
-      scheduleForm.endTime &&
-      scheduleForm.note.trim() &&
-      scheduleHasCoreChanges,
+    scheduleForm.date &&
+    scheduleForm.startTime &&
+    scheduleForm.endTime &&
+    scheduleForm.note.trim() &&
+    scheduleHasCoreChanges,
   );
   const voteOptionHasChanges = Boolean(
     editingVoteOption &&
-      (editVoteOptionForm.venueId !==
-        (editingVoteOption.venue?.id || editingVoteOption.venue_id || "") ||
-        editVoteOptionForm.date !==
-          (editingVoteOption.date ? editingVoteOption.date.slice(0, 10) : "") ||
-        editVoteOptionForm.startTime !==
-          normalizeTimeValue(editingVoteOption.start_time) ||
-        editVoteOptionForm.endTime !==
-          normalizeTimeValue(editingVoteOption.end_time) ||
-        editVoteOptionForm.note.trim().length > 0),
+    (editVoteOptionForm.venueId !==
+      (editingVoteOption.venue?.id || editingVoteOption.venue_id || "") ||
+      editVoteOptionForm.date !==
+        (editingVoteOption.date ? editingVoteOption.date.slice(0, 10) : "") ||
+      editVoteOptionForm.startTime !==
+        normalizeTimeValue(editingVoteOption.start_time) ||
+      editVoteOptionForm.endTime !==
+        normalizeTimeValue(editingVoteOption.end_time) ||
+      editVoteOptionForm.note.trim().length > 0),
   );
   const canSubmitVoteOptionUpdate = Boolean(
     editVoteOptionForm.venueId &&
-      editVoteOptionForm.date &&
-      editVoteOptionForm.startTime &&
-      editVoteOptionForm.endTime &&
-      voteOptionHasChanges,
+    editVoteOptionForm.date &&
+    editVoteOptionForm.startTime &&
+    editVoteOptionForm.endTime &&
+    voteOptionHasChanges,
   );
 
   // Helper to get action text
@@ -907,15 +916,15 @@ export const EventDetailPage = () => {
             )}
             {/* Join/Leave only allowed when status is open or payment_open */}
             {!isCreator && isJoinableStatus && (
-                <Button
-                  variant={hasJoined ? "secondary" : "primary"}
-                  onClick={hasJoined ? handleLeave : handleJoin}
-                  disabled={!hasJoined && isJoinBlocked}
-                  loading={joinEvent.isPending || leaveEvent.isPending}
-                >
-                  {hasJoined ? "Leave" : "Join"}
-                </Button>
-              )}
+              <Button
+                variant={hasJoined ? "secondary" : "primary"}
+                onClick={hasJoined ? handleLeave : handleJoin}
+                disabled={!hasJoined && isJoinBlocked}
+                loading={joinEvent.isPending || leaveEvent.isPending}
+              >
+                {hasJoined ? "Leave" : "Join"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -1105,7 +1114,9 @@ export const EventDetailPage = () => {
                     hasVoted={votedOptionIds.includes(option.id)}
                     onVote={() => handleVote(option.id)}
                     onUnvote={() => handleUnvote(option.id)}
-                    onVoterClick={(voter) => handleOpenUserEvents(voter.user_id)}
+                    onVoterClick={(voter) =>
+                      handleOpenUserEvents(voter.user_id)
+                    }
                     voteDisabled={isVoteBlocked}
                     voteDisabledReason={voteBlockedReason}
                     isVoting={castVote.isPending || removeVote.isPending}
@@ -1181,6 +1192,29 @@ export const EventDetailPage = () => {
               </Button>
             </div>
             <div className="flex gap-3 mt-3">
+              <Button
+                variant="secondary"
+                onClick={handleOpenEditSchedule}
+                className="flex-1"
+              >
+                Edit Location & Time
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Creator Actions for Open */}
+        {isCreator && event.status === "open" && (
+          <div className="surface-card p-4">
+            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+              Next Steps
+            </h2>
+            <p className="text-sm text-gray-600 mb-3">
+              RSVP is open and participants can join. You can still edit the
+              location and time if needed. When ready, open payment to start
+              collecting from participants.
+            </p>
+            <div className="flex gap-3">
               <Button
                 variant="secondary"
                 onClick={handleOpenEditSchedule}
@@ -1316,7 +1350,9 @@ export const EventDetailPage = () => {
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 <Button
                   variant="secondary"
-                  onClick={() => setParticipantPage((prev) => Math.max(1, prev - 1))}
+                  onClick={() =>
+                    setParticipantPage((prev) => Math.max(1, prev - 1))
+                  }
                   disabled={participantPage <= 1}
                   className="px-3 py-1.5 text-xs"
                 >
@@ -1625,7 +1661,8 @@ export const EventDetailPage = () => {
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Upload or remove event gallery images. Maximum 3 images.
+            Upload or remove event gallery images. Maximum 3 images. Max file
+            size: 5 MB.
           </p>
           <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-600 hover:border-green-400 hover:bg-green-50">
             <input
@@ -1753,7 +1790,10 @@ export const EventDetailPage = () => {
             required
             value={editVoteOptionForm.date}
             onChange={(e) =>
-              setEditVoteOptionForm((prev) => ({ ...prev, date: e.target.value }))
+              setEditVoteOptionForm((prev) => ({
+                ...prev,
+                date: e.target.value,
+              }))
             }
           />
 
@@ -1787,7 +1827,10 @@ export const EventDetailPage = () => {
           <textarea
             value={editVoteOptionForm.note}
             onChange={(e) =>
-              setEditVoteOptionForm((prev) => ({ ...prev, note: e.target.value }))
+              setEditVoteOptionForm((prev) => ({
+                ...prev,
+                note: e.target.value,
+              }))
             }
             rows={3}
             placeholder="Optional note for edit history"
@@ -1834,7 +1877,10 @@ export const EventDetailPage = () => {
             <p className="text-sm text-gray-500">No vote option edits yet.</p>
           ) : (
             optionEditHistory.map((log) => (
-              <div key={log.id} className="rounded-lg border border-gray-200 p-3">
+              <div
+                key={log.id}
+                className="rounded-lg border border-gray-200 p-3"
+              >
                 <p className="text-xs text-gray-400">
                   {formatBackendUtcTimestamp(log.created_at)}
                 </p>
@@ -1846,12 +1892,14 @@ export const EventDetailPage = () => {
                 )}
                 <div className="mt-2 text-xs text-gray-500 space-y-1">
                   <p>
-                    From: {log.old_venue?.name || "-"} · {formatDate(log.old_date)} ·{" "}
+                    From: {log.old_venue?.name || "-"} ·{" "}
+                    {formatDate(log.old_date)} ·{" "}
                     {normalizeTimeValue(log.old_start_time)}-
                     {normalizeTimeValue(log.old_end_time)}
                   </p>
                   <p>
-                    To: {log.new_venue?.name || "-"} · {formatDate(log.new_date)} ·{" "}
+                    To: {log.new_venue?.name || "-"} ·{" "}
+                    {formatDate(log.new_date)} ·{" "}
                     {normalizeTimeValue(log.new_start_time)}-
                     {normalizeTimeValue(log.new_end_time)}
                   </p>
@@ -1869,8 +1917,8 @@ export const EventDetailPage = () => {
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Update confirmed location/date/time and add a note. This note is saved
-            in schedule edit history.
+            Update confirmed location/date/time and add a note. This note is
+            saved in schedule edit history.
           </p>
 
           <div>
@@ -1880,7 +1928,10 @@ export const EventDetailPage = () => {
             <select
               value={scheduleForm.venueId}
               onChange={(e) =>
-                setScheduleForm((prev) => ({ ...prev, venueId: e.target.value }))
+                setScheduleForm((prev) => ({
+                  ...prev,
+                  venueId: e.target.value,
+                }))
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
@@ -1909,7 +1960,10 @@ export const EventDetailPage = () => {
               required
               value={scheduleForm.startTime}
               onChange={(e) =>
-                setScheduleForm((prev) => ({ ...prev, startTime: e.target.value }))
+                setScheduleForm((prev) => ({
+                  ...prev,
+                  startTime: e.target.value,
+                }))
               }
             />
           </div>
@@ -1929,14 +1983,14 @@ export const EventDetailPage = () => {
               Change Note <span className="text-red-500 ml-1">*</span>
             </label>
             <textarea
-            value={scheduleForm.note}
-            onChange={(e) =>
-              setScheduleForm((prev) => ({ ...prev, note: e.target.value }))
-            }
-            rows={3}
-            placeholder="Why this schedule changed..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-          />
+              value={scheduleForm.note}
+              onChange={(e) =>
+                setScheduleForm((prev) => ({ ...prev, note: e.target.value }))
+              }
+              rows={3}
+              placeholder="Why this schedule changed..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+            />
           </div>
           {!scheduleHasCoreChanges && (
             <p className="text-xs text-gray-500">
@@ -1976,7 +2030,10 @@ export const EventDetailPage = () => {
             <p className="text-sm text-gray-500">No schedule edits yet.</p>
           ) : (
             scheduleHistory.map((log) => (
-              <div key={log.id} className="rounded-lg border border-gray-200 p-3">
+              <div
+                key={log.id}
+                className="rounded-lg border border-gray-200 p-3"
+              >
                 <p className="text-xs text-gray-400">
                   {formatBackendUtcTimestamp(log.created_at)}
                 </p>
@@ -1986,12 +2043,14 @@ export const EventDetailPage = () => {
                 <p className="text-sm text-gray-600 mt-1">{log.note}</p>
                 <div className="mt-2 text-xs text-gray-500 space-y-1">
                   <p>
-                    From: {log.old_venue?.name || "-"} · {formatDate(log.old_date)} ·{" "}
+                    From: {log.old_venue?.name || "-"} ·{" "}
+                    {formatDate(log.old_date)} ·{" "}
                     {normalizeTimeValue(log.old_start_time)}-
                     {normalizeTimeValue(log.old_end_time)}
                   </p>
                   <p>
-                    To: {log.new_venue?.name || "-"} · {formatDate(log.new_date)} ·{" "}
+                    To: {log.new_venue?.name || "-"} ·{" "}
+                    {formatDate(log.new_date)} ·{" "}
                     {normalizeTimeValue(log.new_start_time)}-
                     {normalizeTimeValue(log.new_end_time)}
                   </p>
