@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCreateEvent } from "../hooks/useEvents";
 import { useVenues, useCreateVenue } from "../hooks/useVenues";
 import { Button } from "../components/ui/Button";
@@ -25,8 +25,16 @@ export const CreateEventPage = () => {
   const showError = useToastStore((state) => state.showError);
   const skipVoting = watch("skip_voting");
 
-  const { data } = useVenues();
+  const VENUE_LIMIT = 10;
+  const [venuePage, setVenuePage] = useState(1);
+  const [venueSearch, setVenueSearch] = useState("");
+  const [venueSearchInput, setVenueSearchInput] = useState("");
+
+  const { data } = useVenues({ page: venuePage, limit: VENUE_LIMIT, search: venueSearch || undefined });
   const venues = data?.venues || [];
+  const totalVenues = data?.total || 0;
+  const venueHasMore = data?.has_more || false;
+  const venueTotalPages = Math.ceil(totalVenues / VENUE_LIMIT);
   const createEvent = useCreateEvent();
   const createVenue = useCreateVenue();
 
@@ -41,6 +49,18 @@ export const CreateEventPage = () => {
     if (options.length < 3) {
       setOptions([...options, { venueId: "", date: "", startTime: "", endTime: "" }]);
     }
+  };
+
+  const handleVenueSearch = (e) => {
+    e.preventDefault();
+    setVenueSearch(venueSearchInput);
+    setVenuePage(1);
+  };
+
+  const handleClearVenueSearch = () => {
+    setVenueSearchInput("");
+    setVenueSearch("");
+    setVenuePage(1);
   };
 
   useEffect(() => {
@@ -189,6 +209,33 @@ export const CreateEventPage = () => {
           </div>
 
           <div className="space-y-3">
+            <form onSubmit={handleVenueSearch} className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search locations..."
+                  value={venueSearchInput}
+                  onChange={(e) => setVenueSearchInput(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                />
+                {venueSearchInput && (
+                  <button
+                    type="button"
+                    onClick={handleClearVenueSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <Button type="submit" variant="secondary" className="px-3 text-sm">
+                Search
+              </Button>
+            </form>
+          </div>
+
+          <div className="space-y-3">
             {options.map((option, index) => (
               <div
                 key={index}
@@ -254,6 +301,32 @@ export const CreateEventPage = () => {
               Add Another Option
             </Button>
           )}
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-500">
+              Page {venuePage} of {venueTotalPages || 1}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setVenuePage((p) => Math.max(1, p - 1))}
+                disabled={venuePage <= 1}
+                className="px-3 py-1.5 text-xs"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setVenuePage((p) => p + 1)}
+                disabled={!venueHasMore}
+                className="px-3 py-1.5 text-xs"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
 
           <button
             type="button"

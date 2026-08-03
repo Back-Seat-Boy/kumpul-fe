@@ -14,6 +14,9 @@ import {
   UserRound,
   Pencil,
   X,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   useEvent,
@@ -246,6 +249,11 @@ export const EventDetailPage = () => {
   const [participantToRemove, setParticipantToRemove] = useState(null);
   const [removalPreview, setRemovalPreview] = useState(null);
 
+  const VENUE_LIMIT = 10;
+  const [venuePage, setVenuePage] = useState(1);
+  const [venueSearch, setVenueSearch] = useState("");
+  const [venueSearchInput, setVenueSearchInput] = useState("");
+
   const { data: event, isLoading: isLoadingEvent } = useEvent(shareToken);
   const { data: options } = useOptionsWithVoters(event?.id, shareToken);
   const { data: participants = [] } = useParticipants(shareToken, {
@@ -264,8 +272,14 @@ export const EventDetailPage = () => {
   );
   const { data: venuesData } = useVenues({
     enabled: !!sessionId && (isEditScheduleOpen || isEditVoteOptionOpen),
+    page: venuePage,
+    limit: VENUE_LIMIT,
+    search: venueSearch || undefined,
   });
   const venues = venuesData?.venues || [];
+  const totalVenues = venuesData?.total || 0;
+  const venueHasMore = venuesData?.has_more || false;
+  const venueTotalPages = Math.ceil(totalVenues / VENUE_LIMIT);
   const { data: scheduleHistory = [], isLoading: isLoadingScheduleHistory } =
     useEventScheduleHistory(event?.id, isScheduleHistoryOpen, shareToken);
   const {
@@ -765,6 +779,18 @@ export const EventDetailPage = () => {
     }
 
     navigate(`/users/${userId}/events`);
+  };
+
+  const handleVenueSearch = (e) => {
+    e.preventDefault();
+    setVenueSearch(venueSearchInput);
+    setVenuePage(1);
+  };
+
+  const handleClearVenueSearch = () => {
+    setVenueSearchInput("");
+    setVenueSearch("");
+    setVenuePage(1);
   };
 
   const chosenOption = options?.find((o) => o.id === event.chosen_option_id);
@@ -1765,6 +1791,30 @@ export const EventDetailPage = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Location <span className="text-red-500 ml-1">*</span>
             </label>
+            <form onSubmit={handleVenueSearch} className="flex gap-2 mb-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={venueSearchInput}
+                  onChange={(e) => setVenueSearchInput(e.target.value)}
+                  className="w-full pl-8 pr-7 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                />
+                {venueSearchInput && (
+                  <button
+                    type="button"
+                    onClick={handleClearVenueSearch}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <Button type="submit" variant="secondary" className="px-2 py-1.5 text-xs">
+                Search
+              </Button>
+            </form>
             <select
               value={editVoteOptionForm.venueId}
               onChange={(e) =>
@@ -1782,6 +1832,31 @@ export const EventDetailPage = () => {
                 </option>
               ))}
             </select>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-gray-500">
+                Page {venuePage} of {venueTotalPages || 1}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setVenuePage((p) => Math.max(1, p - 1))}
+                  disabled={venuePage <= 1}
+                  className="px-2 py-1 text-xs"
+                >
+                  <ChevronLeft className="w-3 h-3" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setVenuePage((p) => p + 1)}
+                  disabled={!venueHasMore}
+                  className="px-2 py-1 text-xs"
+                >
+                  <ChevronRight className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
           </div>
 
           <Input
@@ -1925,6 +2000,30 @@ export const EventDetailPage = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Location <span className="text-red-500 ml-1">*</span>
             </label>
+            <form onSubmit={handleVenueSearch} className="flex gap-2 mb-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={venueSearchInput}
+                  onChange={(e) => setVenueSearchInput(e.target.value)}
+                  className="w-full pl-8 pr-7 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                />
+                {venueSearchInput && (
+                  <button
+                    type="button"
+                    onClick={handleClearVenueSearch}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <Button type="submit" variant="secondary" className="px-2 py-1.5 text-xs">
+                Search
+              </Button>
+            </form>
             <select
               value={scheduleForm.venueId}
               onChange={(e) =>
@@ -1942,6 +2041,31 @@ export const EventDetailPage = () => {
                 </option>
               ))}
             </select>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-gray-500">
+                Page {venuePage} of {venueTotalPages || 1}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setVenuePage((p) => Math.max(1, p - 1))}
+                  disabled={venuePage <= 1}
+                  className="px-2 py-1 text-xs"
+                >
+                  <ChevronLeft className="w-3 h-3" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setVenuePage((p) => p + 1)}
+                  disabled={!venueHasMore}
+                  className="px-2 py-1 text-xs"
+                >
+                  <ChevronRight className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
