@@ -348,6 +348,20 @@ export const EventDetailPage = () => {
     url: `${window.location.origin}${location.pathname}${location.search}${location.hash}`,
   });
 
+  const handleClearVenueSearch = () => {
+    setVenueSearchInput("");
+    setVenueSearch("");
+    setVenuePage(1);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setVenueSearch(venueSearchInput.trim());
+      setVenuePage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [venueSearchInput]);
+
   if (isLoadingEvent) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -779,20 +793,6 @@ export const EventDetailPage = () => {
 
     navigate(`/users/${userId}/events`);
   };
-
-  const handleClearVenueSearch = () => {
-    setVenueSearchInput("");
-    setVenueSearch("");
-    setVenuePage(1);
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setVenueSearch(venueSearchInput.trim());
-      setVenuePage(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [venueSearchInput]);
 
   const chosenOption = options?.find((o) => o.id === event.chosen_option_id);
   const loginTarget = `${location.pathname}${location.search}${location.hash}`;
