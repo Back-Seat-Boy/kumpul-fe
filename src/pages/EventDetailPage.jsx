@@ -941,8 +941,9 @@ export const EventDetailPage = () => {
                 Edit Details
               </Button>
             )}
-            {/* Join/Leave only allowed when status is open or payment_open */}
-            {!isCreator && isJoinableStatus && (
+            {/* Join/Leave only allowed when status is open or payment_open.
+                Organizers are not auto-added, so they can opt in/out too. */}
+            {isJoinableStatus && (
               <Button
                 variant={hasJoined ? "secondary" : "primary"}
                 onClick={hasJoined ? handleLeave : handleJoin}
