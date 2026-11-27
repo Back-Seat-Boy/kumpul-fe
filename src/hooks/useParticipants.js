@@ -48,8 +48,10 @@ export const useJoinEvent = () => {
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   return useMutation({
-    mutationFn: ({ eventId, shareToken }) =>
-      shareToken ? joinEventByShare(shareToken) : joinEvent(eventId),
+    mutationFn: ({ eventId, shareToken, groupId }) =>
+      shareToken
+        ? joinEventByShare(shareToken, groupId)
+        : joinEvent(eventId, groupId),
     onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
       queryClient.invalidateQueries({
@@ -91,10 +93,10 @@ export const useAddGuestParticipant = () => {
   const showSuccess = useToastStore((state) => state.showSuccess);
 
   return useMutation({
-    mutationFn: ({ eventId, shareToken, guestName }) =>
+    mutationFn: ({ eventId, shareToken, guestName, groupId }) =>
       shareToken
-        ? addGuestParticipantByShare(shareToken, guestName)
-        : addGuestParticipant(eventId, guestName),
+        ? addGuestParticipantByShare(shareToken, guestName, groupId)
+        : addGuestParticipant(eventId, guestName, groupId),
     onSuccess: (_, { eventId, shareToken }) => {
       queryClient.invalidateQueries({ queryKey: ["event", shareToken, "participants"] });
       queryClient.invalidateQueries({

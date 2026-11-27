@@ -40,6 +40,15 @@ import {
   useRemoveParticipant,
   useRemovalImpact,
 } from "../hooks/useParticipants";
+import {
+  useGroups,
+  useCreateGroup,
+  useRenameGroup,
+  useDeleteGroup,
+  useAssignParticipantGroup,
+  useUpdateGroupSettings,
+  useChangeOwnGroup,
+} from "../hooks/useGroups";
 import { useCastVote, useRemoveVote } from "../hooks/useVotes";
 import { useAuthStore } from "../store/authStore";
 import { EventStatusBadge } from "../components/event/EventStatusBadge";
@@ -236,6 +245,8 @@ export const EventDetailPage = () => {
   const [impactData, setImpactData] = useState(null);
   const [isAddGuestOpen, setIsAddGuestOpen] = useState(false);
   const [guestName, setGuestName] = useState("");
+  const [guestGroupId, setGuestGroupId] = useState("");
+  const [isChooseGroupOpen, setIsChooseGroupOpen] = useState(false);
   const [galleryImageUrls, setGalleryImageUrls] = useState([]);
   const [isUploadingGalleryImage, setIsUploadingGalleryImage] = useState(false);
   const [selectedGalleryImage, setSelectedGalleryImage] = useState(null);
@@ -244,6 +255,11 @@ export const EventDetailPage = () => {
     useState("");
   const [participantSortOrder, setParticipantSortOrder] = useState("asc");
   const [participantPage, setParticipantPage] = useState(1);
+  const [participantGroupFilter, setParticipantGroupFilter] = useState("");
+  const [isManageGroupsOpen, setIsManageGroupsOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editingGroupName, setEditingGroupName] = useState("");
   const [participantToRemove, setParticipantToRemove] = useState(null);
   const [removalPreview, setRemovalPreview] = useState(null);
 
@@ -257,11 +273,13 @@ export const EventDetailPage = () => {
   const { data: participants = [] } = useParticipants(shareToken, {
     limit: 100,
   });
+  const { data: groups = [] } = useGroups(shareToken);
   const { data: participantDirectory } = useParticipantsDirectory(shareToken, {
     page: participantPage,
     limit: 10,
     search: debouncedParticipantSearch || undefined,
     sort_order: participantSortOrder,
+    group_id: participantGroupFilter || undefined,
   });
   const { data: paymentData } = usePayment(
     event?.id,
@@ -293,6 +311,12 @@ export const EventDetailPage = () => {
   const addGuestParticipant = useAddGuestParticipant();
   const removeParticipant = useRemoveParticipant();
   const removalImpact = useRemovalImpact();
+  const createGroup = useCreateGroup();
+  const renameGroup = useRenameGroup();
+  const deleteGroup = useDeleteGroup();
+  const assignParticipantGroup = useAssignParticipantGroup();
+  const updateGroupSettings = useUpdateGroupSettings();
+  const changeOwnGroup = useChangeOwnGroup();
   const castVote = useCastVote();
   const removeVote = useRemoveVote();
   const updateEventDetails = useUpdateEventDetails();
@@ -312,6 +336,14 @@ export const EventDetailPage = () => {
     !!sessionId && isJoinableStatus && (isCreator || hasJoined);
   const canCancelEvent =
     isCreator && event?.status !== "completed" && event?.status !== "cancelled";
+  const canManageGroups =
+    isCreator && event?.status !== "completed" && event?.status !== "cancelled";
+  const sortedGroups = [...groups].sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  const selfSelectOn =
+    Boolean(event?.allow_group_self_select) && sortedGroups.length > 0;
+  const ownParticipant = participants?.find((p) => p.user_id === user?.id);
   const eventImages = event?.images || [];
   const participantDirectoryList = participantDirectory?.participants || [];
   const participantDirectoryTotal = participantDirectory?.total || 0;
@@ -337,6 +369,10 @@ export const EventDetailPage = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [participantSearch]);
+
+  useEffect(() => {
+    setParticipantPage(1);
+  }, [participantGroupFilter]);
 
   usePageMeta({
     title: event?.title ? `${event.title} | Kumpul` : "Event Detail | Kumpul",
@@ -461,7 +497,17 @@ export const EventDetailPage = () => {
     }
   };
 
-  const handleJoin = async () => {
+  const submitJoin = async (groupId) => {
+    try {
+      await joinEvent.mutateAsync({ eventId: event.id, shareToken, groupId });
+      return true;
+    } catch {
+      // error toast is shown by the mutation hook
+      return false;
+    }
+  };
+
+  const handleJoin = () => {
     if (isJoinBlocked) {
       showError(joinBlockedReason);
       return;
@@ -471,11 +517,18 @@ export const EventDetailPage = () => {
       setIsJoinLoginPromptOpen(true);
       return;
     }
-    try {
-      await joinEvent.mutateAsync({ eventId: event.id, shareToken });
-    } catch (error) {
-      showError(getErrorMessage(error));
+
+    if (selfSelectOn) {
+      setIsChooseGroupOpen(true);
+      return;
     }
+
+    submitJoin();
+  };
+
+  const handleChooseGroup = (groupId) => {
+    setIsChooseGroupOpen(false);
+    submitJoin(groupId);
   };
 
   const handleLeave = async () => {
@@ -498,16 +551,20 @@ export const EventDetailPage = () => {
     }
 
     if (!guestName.trim()) return;
+    if (selfSelectOn && !guestGroupId) return;
+
     try {
       await addGuestParticipant.mutateAsync({
         eventId: event.id,
         shareToken,
         guestName: guestName.trim(),
+        groupId: guestGroupId || undefined,
       });
       setGuestName("");
+      setGuestGroupId("");
       setIsAddGuestOpen(false);
-    } catch (error) {
-      showError(getErrorMessage(error));
+    } catch {
+      // error toast is shown by the mutation hook
     }
   };
 
@@ -545,6 +602,81 @@ export const EventDetailPage = () => {
       setRemovalPreview(null);
       showError(getErrorMessage(error));
     }
+  };
+
+  const handleAddGroup = async () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+
+    try {
+      await createGroup.mutateAsync({ eventId: event.id, shareToken, name });
+      setNewGroupName("");
+    } catch {
+      // error toast is shown by the mutation hook
+    }
+  };
+
+  const handleRenameGroup = async (group) => {
+    const name = editingGroupName.trim();
+    if (!name) return;
+
+    try {
+      await renameGroup.mutateAsync({
+        eventId: event.id,
+        groupId: group.id,
+        shareToken,
+        name,
+      });
+      setEditingGroupId(null);
+      setEditingGroupName("");
+    } catch {
+      // error toast is shown by the mutation hook
+    }
+  };
+
+  const handleDeleteGroup = async (group) => {
+    if (
+      !window.confirm(
+        `Delete group "${group.name}"? Participants in it will become unassigned.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await deleteGroup.mutateAsync({
+        eventId: event.id,
+        groupId: group.id,
+        shareToken,
+      });
+      if (editingGroupId === group.id) {
+        setEditingGroupId(null);
+        setEditingGroupName("");
+      }
+      if (participantGroupFilter === group.id) {
+        setParticipantGroupFilter("");
+      }
+    } catch {
+      // error toast is shown by the mutation hook
+    }
+  };
+
+  const handleAssignGroup = (participant, groupId) => {
+    assignParticipantGroup.mutate({
+      eventId: event.id,
+      participantId: participant.id,
+      groupId,
+      shareToken,
+    });
+  };
+
+  const handleChangeOwnGroup = (groupId) => {
+    if (!groupId) return;
+    changeOwnGroup.mutate({ eventId: event.id, groupId, shareToken });
+  };
+
+  const handleToggleSelfSelect = (allow) => {
+    updateGroupSettings.mutate({ eventId: event.id, allow, shareToken });
   };
 
   const handleCloseVoting = async () => {
@@ -1289,18 +1421,58 @@ export const EventDetailPage = () => {
                     Browse who has joined, search by name, or sort the list.
                   </p>
                 </div>
-                {canAddGuest && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setIsAddGuestOpen(true)}
-                    disabled={isJoinBlocked}
-                    className="px-3 py-2 text-sm sm:self-center"
-                  >
-                    Add Guest
-                  </Button>
+                {(canAddGuest || canManageGroups) && (
+                  <div className="flex flex-wrap items-center gap-2 sm:self-center">
+                    {canManageGroups && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setIsManageGroupsOpen(true)}
+                        className="px-3 py-2 text-sm"
+                      >
+                        Manage groups
+                      </Button>
+                    )}
+                    {canAddGuest && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setIsAddGuestOpen(true)}
+                        disabled={isJoinBlocked}
+                        className="px-3 py-2 text-sm"
+                      >
+                        Add Guest
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
+
+            {hasJoined && selfSelectOn && (
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <label
+                  htmlFor="own-group-select"
+                  className="text-xs font-medium uppercase tracking-wide text-gray-500"
+                >
+                  Your group
+                </label>
+                <select
+                  id="own-group-select"
+                  value={ownParticipant?.group_id || ""}
+                  onChange={(e) => handleChangeOwnGroup(e.target.value)}
+                  disabled={changeOwnGroup.isPending}
+                  className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="" disabled>
+                    Choose a group
+                  </option>
+                  {sortedGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {creatorParticipant && (
               <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 p-3">
@@ -1320,6 +1492,32 @@ export const EventDetailPage = () => {
                   <p className="text-xs text-amber-600">Organizer</p>
                 </div>
                 <Crown className="w-4 h-4 text-amber-500" />
+              </div>
+            )}
+
+            {sortedGroups.length > 0 && (
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                {[
+                  { value: "", label: "All" },
+                  ...sortedGroups.map((group) => ({
+                    value: group.id,
+                    label: group.name,
+                  })),
+                  { value: "unassigned", label: "Unassigned" },
+                ].map((chip) => (
+                  <button
+                    key={chip.value || "all"}
+                    type="button"
+                    onClick={() => setParticipantGroupFilter(chip.value)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      participantGroupFilter === chip.value
+                        ? "border-green-600 bg-green-600 text-white"
+                        : "border-gray-300 bg-white text-gray-600 hover:border-green-300 hover:bg-green-50 hover:text-green-700"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -1362,6 +1560,8 @@ export const EventDetailPage = () => {
               onParticipantClick={(participant) =>
                 handleOpenUserEvents(participant.user_id)
               }
+              onAssignGroup={canManageGroups ? handleAssignGroup : undefined}
+              groups={groups}
               eventId={event.id}
               eventStatus={event.status}
               maxDisplay={100}
@@ -2163,6 +2363,31 @@ export const EventDetailPage = () => {
       </Modal>
 
       <Modal
+        isOpen={isChooseGroupOpen}
+        onClose={() => setIsChooseGroupOpen(false)}
+        title="Choose your group"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Pick the group you want to join with.
+          </p>
+          <div className="space-y-2">
+            {sortedGroups.map((group) => (
+              <Button
+                key={group.id}
+                variant="secondary"
+                onClick={() => handleChooseGroup(group.id)}
+                disabled={joinEvent.isPending}
+                className="w-full"
+              >
+                {group.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         isOpen={isAddGuestOpen}
         onClose={() => setIsAddGuestOpen(false)}
         title="Add Guest"
@@ -2180,6 +2405,29 @@ export const EventDetailPage = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
+          {sortedGroups.length > 0 && (selfSelectOn || isCreator) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Group
+                {selfSelectOn && <span className="text-red-500 ml-1">*</span>}
+              </label>
+              <select
+                value={guestGroupId}
+                onChange={(e) => setGuestGroupId(e.target.value)}
+                required={selfSelectOn}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                <option value="">
+                  {selfSelectOn ? "Choose a group" : "No group"}
+                </option>
+                {sortedGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex gap-3">
             <Button
               variant="secondary"
@@ -2191,12 +2439,136 @@ export const EventDetailPage = () => {
             <Button
               onClick={handleAddGuest}
               loading={addGuestParticipant.isPending}
-              disabled={!guestName.trim()}
+              disabled={
+                !guestName.trim() || (selfSelectOn && !guestGroupId)
+              }
               className="flex-1"
             >
               Add Guest
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isManageGroupsOpen}
+        onClose={() => {
+          setIsManageGroupsOpen(false);
+          setEditingGroupId(null);
+          setEditingGroupName("");
+          setNewGroupName("");
+        }}
+        title="Manage Groups"
+      >
+        <div className="space-y-4">
+          <div className="flex items-end gap-2">
+            <Input
+              placeholder="Group name (e.g. Male)"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddGroup();
+              }}
+            />
+            <Button
+              onClick={handleAddGroup}
+              loading={createGroup.isPending}
+              disabled={!newGroupName.trim()}
+              className="shrink-0 px-3 py-2 text-sm"
+            >
+              Add
+            </Button>
+          </div>
+
+          {sortedGroups.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              No groups yet. Add one above to start grouping participants.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {sortedGroups.map((group) => (
+                <div key={group.id} className="flex items-center gap-2">
+                  {editingGroupId === group.id ? (
+                    <>
+                      <div className="min-w-0 flex-1">
+                        <Input
+                          value={editingGroupName}
+                          onChange={(e) => setEditingGroupName(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                      <Button
+                        onClick={() => handleRenameGroup(group)}
+                        loading={renameGroup.isPending}
+                        disabled={!editingGroupName.trim()}
+                        className="shrink-0 px-3 py-2 text-sm"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingGroupId(null);
+                          setEditingGroupName("");
+                        }}
+                        className="shrink-0 px-2 py-2 text-sm"
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+                        {group.name}
+                      </span>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingGroupId(group.id);
+                          setEditingGroupName(group.name);
+                        }}
+                        className="shrink-0 px-3 py-1.5 text-xs"
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        variant="danger"
+                        onClick={() => handleDeleteGroup(group)}
+                        className="shrink-0 px-3 py-1.5 text-xs"
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="rounded-lg border border-gray-200 p-3">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={Boolean(event.allow_group_self_select)}
+                onChange={(e) => handleToggleSelfSelect(e.target.checked)}
+                disabled={updateGroupSettings.isPending}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-700">
+                  Let participants choose their group when joining
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  Turn off to lock groups. Existing participants stay
+                  unassigned until you sort them.
+                </span>
+              </span>
+            </label>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Assign participants to a group from the registrant list.
+          </p>
         </div>
       </Modal>
 

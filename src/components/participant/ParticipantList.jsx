@@ -1,6 +1,7 @@
 import { Users, Crown, UserRound, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Avatar } from "../ui/Avatar";
+import { Badge } from "../ui/Badge";
 
 export const ParticipantList = ({ 
   participants, 
@@ -12,6 +13,8 @@ export const ParticipantList = ({
   eventId,
   eventStatus,
   variant = "chips",
+  groups = [],
+  onAssignGroup,
 }) => {
   if (!participants || participants.length === 0) {
     return (
@@ -36,6 +39,7 @@ export const ParticipantList = ({
 
   const displayParticipants = participants.slice(0, maxDisplay);
   const remainingCount = Math.max(0, participants.length - maxDisplay);
+  const groupById = new Map((groups || []).map((group) => [group.id, group]));
 
   if (variant === "directory") {
     return (
@@ -85,10 +89,34 @@ export const ParticipantList = ({
                   <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 )}
               </div>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {participant.is_guest ? "Guest registrant" : "Registered user"}
+              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span>
+                  {participant.is_guest ? "Guest registrant" : "Registered user"}
+                </span>
+                {groupById.has(participant.group_id) && (
+                  <Badge variant="open" className="shrink-0">
+                    {groupById.get(participant.group_id).name}
+                  </Badge>
+                )}
               </p>
             </div>
+
+            {isCreator && onAssignGroup && groups.length > 0 && (
+              <select
+                value={participant.group_id || ""}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => onAssignGroup(participant, e.target.value || null)}
+                title="Assign group"
+                className="max-w-[7.5rem] shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">No group</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            )}
 
             {isCreator && onRemove && participant.user_id !== isCreatorId &&
               (eventStatus === "open" || eventStatus === "payment_open") && (
