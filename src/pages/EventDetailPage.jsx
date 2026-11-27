@@ -18,6 +18,7 @@ import {
 import {
   useEvent,
   useUpdateEventDetails,
+  useUpdateEventRegistration,
   useUpdateEventStatus,
   useSetChosenOption,
   useUpdateEventSchedule,
@@ -210,6 +211,11 @@ export const EventDetailPage = () => {
     title: "",
     description: "",
   });
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+  const [registrationForm, setRegistrationForm] = useState({
+    playerCap: "",
+    registrationOpen: true,
+  });
   const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
   const [isEditVoteOptionOpen, setIsEditVoteOptionOpen] = useState(false);
   const [isVoteOptionHistoryOpen, setIsVoteOptionHistoryOpen] = useState(false);
@@ -296,6 +302,7 @@ export const EventDetailPage = () => {
   const castVote = useCastVote();
   const removeVote = useRemoveVote();
   const updateEventDetails = useUpdateEventDetails();
+  const updateEventRegistration = useUpdateEventRegistration();
   const updateStatus = useUpdateEventStatus();
   const setChosenOption = useSetChosenOption();
   const updateOption = useUpdateOption();
@@ -312,6 +319,9 @@ export const EventDetailPage = () => {
     !!sessionId && isJoinableStatus && (isCreator || hasJoined);
   const canCancelEvent =
     isCreator && event?.status !== "completed" && event?.status !== "cancelled";
+  const canManageRegistration =
+    isCreator &&
+    ["confirmed", "open", "payment_open"].includes(event?.status);
   const eventImages = event?.images || [];
   const participantDirectoryList = participantDirectory?.participants || [];
   const participantDirectoryTotal = participantDirectory?.total || 0;
@@ -410,9 +420,12 @@ export const EventDetailPage = () => {
   const isCapNear =
     hasPlayerCap && !isCapReached && remainingSlots <= capNearThreshold;
 
-  const joinBlockedReason = isCapReached
-    ? "Registration is closed because participant cap has been reached."
-    : "";
+  const joinBlockedReason =
+    event.registration_closed && !isCreator
+      ? "Registration is temporarily closed."
+      : isCapReached
+        ? "Registration is closed because participant cap has been reached."
+        : "";
   const voteBlockedReason = isVotingDeadlineReached
     ? "Voting is closed because the deadline has passed."
     : isCapReached
@@ -617,6 +630,42 @@ export const EventDetailPage = () => {
       setIsEditDetailsOpen(false);
     } catch (error) {
       showError(getErrorMessage(error));
+    }
+  };
+
+  const handleOpenRegistration = () => {
+    setRegistrationForm({
+      playerCap: event.player_cap ? String(event.player_cap) : "",
+      registrationOpen: !event.registration_closed,
+    });
+    setIsRegistrationModalOpen(true);
+  };
+
+  const handleSubmitRegistration = async () => {
+    const rawCap = registrationForm.playerCap.trim();
+    let playerCap = null;
+
+    if (rawCap !== "") {
+      const parsedCap = Number(rawCap);
+      if (!Number.isInteger(parsedCap) || parsedCap < 1) {
+        showError("Participant limit must be at least 1");
+        return;
+      }
+      playerCap = parsedCap;
+    }
+
+    try {
+      await updateEventRegistration.mutateAsync({
+        eventId: event.id,
+        shareToken,
+        data: {
+          player_cap: playerCap,
+          registration_closed: !registrationForm.registrationOpen,
+        },
+      });
+      setIsRegistrationModalOpen(false);
+    } catch {
+      return;
     }
   };
 
@@ -941,6 +990,16 @@ export const EventDetailPage = () => {
                 Edit Details
               </Button>
             )}
+            {canManageRegistration && (
+              <Button
+                variant="secondary"
+                onClick={handleOpenRegistration}
+                className="px-3"
+              >
+                <Users className="w-4 h-4" />
+                Registration
+              </Button>
+            )}
             {/* Join/Leave only allowed when status is open or payment_open.
                 Organizers are not auto-added, so they can opt in/out too. */}
             {isJoinableStatus && (
@@ -959,6 +1018,17 @@ export const EventDetailPage = () => {
 
       {/* Content */}
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+        {event.registration_closed && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <p className="text-sm text-amber-800">
+                Registration is temporarily closed by the organizer.
+              </p>
+            </div>
+          </div>
+        )}
+
         {(isVotingDeadlineNear ||
           isCapNear ||
           isVotingDeadlineReached ||
@@ -1677,6 +1747,66 @@ export const EventDetailPage = () => {
               className="flex-1"
             >
               Save Details
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isRegistrationModalOpen}
+        onClose={() => setIsRegistrationModalOpen(false)}
+        title="Registration Settings"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Participant limit"
+            type="number"
+            min="1"
+            placeholder="No limit"
+            value={registrationForm.playerCap}
+            onChange={(e) =>
+              setRegistrationForm((prev) => ({
+                ...prev,
+                playerCap: e.target.value,
+              }))
+            }
+          />
+          <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              checked={registrationForm.registrationOpen}
+              onChange={(e) =>
+                setRegistrationForm((prev) => ({
+                  ...prev,
+                  registrationOpen: e.target.checked,
+                }))
+              }
+            />
+            <span>
+              <span className="block text-sm font-medium text-gray-700">
+                Registration open
+              </span>
+              <span className="block text-sm text-gray-500">
+                Turn off to temporarily stop new people from joining. You can
+                still join or add guests yourself.
+              </span>
+            </span>
+          </label>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsRegistrationModalOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitRegistration}
+              loading={updateEventRegistration.isPending}
+              className="flex-1"
+            >
+              Save
             </Button>
           </div>
         </div>

@@ -35,6 +35,17 @@ export const updateEventDetails = async (eventId, data) => {
   return res.data.data;
 };
 
+export const updateEventRegistration = async (
+  eventId,
+  { player_cap, registration_closed },
+) => {
+  const res = await api.patch(`/api/events/${eventId}/registration/`, {
+    player_cap,
+    registration_closed,
+  });
+  return res.data.data;
+};
+
 export const updateEventImages = async (eventId, imageUrls) => {
   const res = await api.patch(`/api/events/${eventId}/images/`, {
     image_urls: imageUrls,
